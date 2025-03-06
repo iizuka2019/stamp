@@ -33,6 +33,7 @@
       border-radius: 5px;
     }
     .stamp-button:disabled { background-color: #aaa; cursor: not-allowed; }
+    footer { background: #eee; padding: 10px; text-align: center; font-size: 12px; color: #666; }
   </style>
 </head>
 <body>
@@ -50,6 +51,10 @@
     </div>
   </div>
   
+  <footer>
+    リリース更新日: 2025-03-06
+  </footer>
+  
   <!-- LeafletのJS -->
   <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
   <script>
@@ -58,6 +63,20 @@
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       attribution: '&copy; OpenStreetMap contributors'
     }).addTo(map);
+
+    // ユーザーの現在地を取得し、マップにピンを追加
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(function(position) {
+        var lat = position.coords.latitude;
+        var lng = position.coords.longitude;
+        var currentLocationMarker = L.marker([lat, lng]).addTo(map);
+        currentLocationMarker.bindPopup("あなたの現在地").openPopup();
+      }, function(error) {
+        console.error("Geolocation error: " + error.message);
+      });
+    } else {
+      console.error("Geolocation is not supported by this browser.");
+    }
 
     // サンプルのスタンプスポットデータ
     var stampSpots = [
@@ -88,7 +107,6 @@
         btn.innerText = spot.stamped ? "獲得済み" : "スタンプ取得";
         btn.disabled = spot.stamped;
         btn.onclick = function() {
-          // スタンプ取得のシミュレーション
           spot.stamped = true;
           alert(spot.name + "のスタンプを獲得しました！");
           updateStampCard();
