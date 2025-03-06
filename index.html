@@ -138,38 +138,39 @@
     var markers = L.markerClusterGroup();
 
     // サンプルの城・城址のデータ（全30件＋表木城址：計31件）
+    var dummyImage = "https://gigaplus.makeshop.jp/hw2019/images/pages/page2/takane_img06.jpg";
     var castleSpots = [
-      { id: 1,  name: "姫路城",     lat: 34.8394, lng: 134.6939, stamped: false, photo: null, defaultImage: "https://via.placeholder.com/150?text=姫路城" },
-      { id: 2,  name: "大阪城",     lat: 34.6873, lng: 135.5259, stamped: false, photo: null, defaultImage: "https://via.placeholder.com/150?text=大阪城" },
-      { id: 3,  name: "名古屋城",   lat: 35.1850, lng: 136.9066, stamped: false, photo: null, defaultImage: "https://via.placeholder.com/150?text=名古屋城" },
-      { id: 4,  name: "熊本城",     lat: 32.8031, lng: 130.7079, stamped: false, photo: null, defaultImage: "https://via.placeholder.com/150?text=熊本城" },
-      { id: 5,  name: "松本城",     lat: 36.2381, lng: 137.9681, stamped: false, photo: null, defaultImage: "https://via.placeholder.com/150?text=松本城" },
-      { id: 6,  name: "弘前城",     lat: 40.6045, lng: 140.4637, stamped: false, photo: null, defaultImage: "https://via.placeholder.com/150?text=弘前城" },
-      { id: 7,  name: "二条城",     lat: 35.0214, lng: 135.7524, stamped: false, photo: null, defaultImage: "https://via.placeholder.com/150?text=二条城" },
-      { id: 8,  name: "松山城",     lat: 33.8394, lng: 132.7663, stamped: false, photo: null, defaultImage: "https://via.placeholder.com/150?text=松山城" },
-      { id: 9,  name: "丸亀城",     lat: 34.2772, lng: 133.7593, stamped: false, photo: null, defaultImage: "https://via.placeholder.com/150?text=丸亀城" },
-      { id: 10, name: "高知城",     lat: 33.5597, lng: 133.5311, stamped: false, photo: null, defaultImage: "https://via.placeholder.com/150?text=高知城" },
-      { id: 11, name: "岡山城",     lat: 34.6551, lng: 133.9183, stamped: false, photo: null, defaultImage: "https://via.placeholder.com/150?text=岡山城" },
-      { id: 12, name: "金沢城",     lat: 36.5613, lng: 136.6562, stamped: false, photo: null, defaultImage: "https://via.placeholder.com/150?text=金沢城" },
-      { id: 13, name: "福山城",     lat: 34.4833, lng: 133.3640, stamped: false, photo: null, defaultImage: "https://via.placeholder.com/150?text=福山城" },
-      { id: 14, name: "江戸城跡",   lat: 35.6852, lng: 139.7528, stamped: false, photo: null, defaultImage: "https://via.placeholder.com/150?text=江戸城跡" },
-      { id: 15, name: "敦賀城",     lat: 35.6000, lng: 135.2000, stamped: false, photo: null, defaultImage: "https://via.placeholder.com/150?text=敦賀城" },
-      { id: 16, name: "伊賀上野城", lat: 34.7333, lng: 136.1833, stamped: false, photo: null, defaultImage: "https://via.placeholder.com/150?text=伊賀上野城" },
-      { id: 17, name: "彦根城",     lat: 35.2753, lng: 136.1264, stamped: false, photo: null, defaultImage: "https://via.placeholder.com/150?text=彦根城" },
-      { id: 18, name: "松江城",     lat: 35.4667, lng: 133.0500, stamped: false, photo: null, defaultImage: "https://via.placeholder.com/150?text=松江城" },
-      { id: 19, name: "宇和島城",   lat: 33.9833, lng: 132.7667, stamped: false, photo: null, defaultImage: "https://via.placeholder.com/150?text=宇和島城" },
-      { id: 20, name: "犬山城",     lat: 35.3250, lng: 136.9500, stamped: false, photo: null, defaultImage: "https://via.placeholder.com/150?text=犬山城" },
-      { id: 21, name: "岩国城",     lat: 34.1667, lng: 132.1833, stamped: false, photo: null, defaultImage: "https://via.placeholder.com/150?text=岩国城" },
-      { id: 22, name: "会津若松城", lat: 37.4922, lng: 139.9292, stamped: false, photo: null, defaultImage: "https://via.placeholder.com/150?text=会津若松城" },
-      { id: 23, name: "広島城",     lat: 34.3956, lng: 132.4597, stamped: false, photo: null, defaultImage: "https://via.placeholder.com/150?text=広島城" },
-      { id: 24, name: "上田城",     lat: 36.3843, lng: 138.2494, stamped: false, photo: null, defaultImage: "https://via.placeholder.com/150?text=上田城" },
-      { id: 25, name: "小田原城",   lat: 35.2550, lng: 139.1500, stamped: false, photo: null, defaultImage: "https://via.placeholder.com/150?text=小田原城" },
-      { id: 26, name: "鹿児島城",   lat: 31.5600, lng: 130.5581, stamped: false, photo: null, defaultImage: "https://via.placeholder.com/150?text=鹿児島城" },
-      { id: 27, name: "首里城",     lat: 26.2173, lng: 127.7170, stamped: false, photo: null, defaultImage: "https://via.placeholder.com/150?text=首里城" },
-      { id: 28, name: "堺城",       lat: 34.5673, lng: 135.5159, stamped: false, photo: null, defaultImage: "https://via.placeholder.com/150?text=堺城" },
-      { id: 29, name: "上野城",     lat: 35.7184, lng: 139.7121, stamped: false, photo: null, defaultImage: "https://via.placeholder.com/150?text=上野城" },
-      { id: 30, name: "津山城",     lat: 35.3308, lng: 134.0552, stamped: false, photo: null, defaultImage: "https://via.placeholder.com/150?text=津山城" },
-      { id: 31, name: "表木城址",   lat: 35.0000, lng: 136.0000, stamped: false, photo: null, defaultImage: "https://via.placeholder.com/150?text=表木城址", points: 10 }
+      { id: 1,  name: "姫路城",     lat: 34.8394, lng: 134.6939, stamped: false, photo: null, defaultImage: dummyImage },
+      { id: 2,  name: "大阪城",     lat: 34.6873, lng: 135.5259, stamped: false, photo: null, defaultImage: dummyImage },
+      { id: 3,  name: "名古屋城",   lat: 35.1850, lng: 136.9066, stamped: false, photo: null, defaultImage: dummyImage },
+      { id: 4,  name: "熊本城",     lat: 32.8031, lng: 130.7079, stamped: false, photo: null, defaultImage: dummyImage },
+      { id: 5,  name: "松本城",     lat: 36.2381, lng: 137.9681, stamped: false, photo: null, defaultImage: dummyImage },
+      { id: 6,  name: "弘前城",     lat: 40.6045, lng: 140.4637, stamped: false, photo: null, defaultImage: dummyImage },
+      { id: 7,  name: "二条城",     lat: 35.0214, lng: 135.7524, stamped: false, photo: null, defaultImage: dummyImage },
+      { id: 8,  name: "松山城",     lat: 33.8394, lng: 132.7663, stamped: false, photo: null, defaultImage: dummyImage },
+      { id: 9,  name: "丸亀城",     lat: 34.2772, lng: 133.7593, stamped: false, photo: null, defaultImage: dummyImage },
+      { id: 10, name: "高知城",     lat: 33.5597, lng: 133.5311, stamped: false, photo: null, defaultImage: dummyImage },
+      { id: 11, name: "岡山城",     lat: 34.6551, lng: 133.9183, stamped: false, photo: null, defaultImage: dummyImage },
+      { id: 12, name: "金沢城",     lat: 36.5613, lng: 136.6562, stamped: false, photo: null, defaultImage: dummyImage },
+      { id: 13, name: "福山城",     lat: 34.4833, lng: 133.3640, stamped: false, photo: null, defaultImage: dummyImage },
+      { id: 14, name: "江戸城跡",   lat: 35.6852, lng: 139.7528, stamped: false, photo: null, defaultImage: dummyImage },
+      { id: 15, name: "敦賀城",     lat: 35.6000, lng: 135.2000, stamped: false, photo: null, defaultImage: dummyImage },
+      { id: 16, name: "伊賀上野城", lat: 34.7333, lng: 136.1833, stamped: false, photo: null, defaultImage: dummyImage },
+      { id: 17, name: "彦根城",     lat: 35.2753, lng: 136.1264, stamped: false, photo: null, defaultImage: dummyImage },
+      { id: 18, name: "松江城",     lat: 35.4667, lng: 133.0500, stamped: false, photo: null, defaultImage: dummyImage },
+      { id: 19, name: "宇和島城",   lat: 33.9833, lng: 132.7667, stamped: false, photo: null, defaultImage: dummyImage },
+      { id: 20, name: "犬山城",     lat: 35.3250, lng: 136.9500, stamped: false, photo: null, defaultImage: dummyImage },
+      { id: 21, name: "岩国城",     lat: 34.1667, lng: 132.1833, stamped: false, photo: null, defaultImage: dummyImage },
+      { id: 22, name: "会津若松城", lat: 37.4922, lng: 139.9292, stamped: false, photo: null, defaultImage: dummyImage },
+      { id: 23, name: "広島城",     lat: 34.3956, lng: 132.4597, stamped: false, photo: null, defaultImage: dummyImage },
+      { id: 24, name: "上田城",     lat: 36.3843, lng: 138.2494, stamped: false, photo: null, defaultImage: dummyImage },
+      { id: 25, name: "小田原城",   lat: 35.2550, lng: 139.1500, stamped: false, photo: null, defaultImage: dummyImage },
+      { id: 26, name: "鹿児島城",   lat: 31.5600, lng: 130.5581, stamped: false, photo: null, defaultImage: dummyImage },
+      { id: 27, name: "首里城",     lat: 26.2173, lng: 127.7170, stamped: false, photo: null, defaultImage: dummyImage },
+      { id: 28, name: "堺城",       lat: 34.5673, lng: 135.5159, stamped: false, photo: null, defaultImage: dummyImage },
+      { id: 29, name: "上野城",     lat: 35.7184, lng: 139.7121, stamped: false, photo: null, defaultImage: dummyImage },
+      { id: 30, name: "津山城",     lat: 35.3308, lng: 134.0552, stamped: false, photo: null, defaultImage: dummyImage },
+      { id: 31, name: "表木城址",   lat: 35.7861114, lng: 137.874874, stamped: false, photo: null, defaultImage: dummyImage, points: 10 }
     ];
 
     // 各城のマーカーを作成してMarker Cluster Groupに追加
@@ -203,8 +204,8 @@
       castleSpots.forEach(function(spot) {
         var stampItem = document.createElement('div');
         stampItem.className = 'stamp-item' + (spot.stamped ? ' stamped' : '');
-        // 表示するデフォルト画像＋城名
-        stampItem.innerHTML = '<img src="' + (spot.defaultImage ? spot.defaultImage : "https://via.placeholder.com/150") + 
+        // デフォルト画像＋城名を表示
+        stampItem.innerHTML = '<img src="' + spot.defaultImage + 
                               '" class="default-image" alt="' + spot.name + '"><h3>' + spot.name + '</h3>';
         
         // ボタンやファイル入力などを入れるコンテナ
