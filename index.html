@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <title>スタンプラリー プロトタイプ</title>
+  <!-- LeafletのCSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: Arial, sans-serif;
+    }
+    #map {
+      width: 100%;
+      height: 80vh;
+    }
+    .stamp-container {
+      text-align: center;
+      margin: 20px;
+    }
+    .stamp-button {
+      background-color: #4CAF50;
+      border: none;
+      color: white;
+      padding: 15px 30px;
+      font-size: 16px;
+      cursor: pointer;
+      border-radius: 5px;
+    }
+  </style>
+</head>
+<body>
+  <div id="map"></div>
+  <div class="stamp-container">
+    <button class="stamp-button" onclick="registerStamp()">スタンプを獲得</button>
+  </div>
+
+  <!-- LeafletのJS -->
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+  <script>
+    // 地図の初期設定（東京を中心に表示）
+    var map = L.map('map').setView([35.6895, 139.6917], 13);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; OpenStreetMap contributors'
+    }).addTo(map);
+
+    // サンプルのスタンプスポット（マーカー）
+    var marker = L.marker([35.6895, 139.6917]).addTo(map);
+    marker.bindPopup("スタンプスポット").openPopup();
+
+    // スタンプ獲得をシミュレーションする関数
+    function registerStamp() {
+      alert("スタンプを獲得しました！");
+      // ここで、AJAX等を使ってバックエンドへスタンプ記録のリクエストを送る
+    }
+  </script>
+</body>
+</html>
