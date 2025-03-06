@@ -11,6 +11,11 @@
     header { background: #4CAF50; color: #fff; padding: 20px; text-align: center; }
     #map { width: 100%; height: 50vh; }
     .container { padding: 20px; }
+    #pointsDisplay {
+      font-size: 18px;
+      margin-bottom: 10px;
+      text-align: center;
+    }
     .stamp-card { display: flex; flex-wrap: wrap; gap: 10px; }
     .stamp-item {
       background: #fff;
@@ -45,6 +50,7 @@
   <div id="map"></div>
   
   <div class="container">
+    <div id="pointsDisplay">総ポイント: 0</div>
     <h2>スタンプカード</h2>
     <div class="stamp-card" id="stampCard">
       <!-- スタンプ情報がここに表示されます -->
@@ -52,12 +58,30 @@
   </div>
   
   <footer>
-    リリース更新日: 2025-03-06
+    リリース更新日: 2025-03-06 22:19:00
   </footer>
   
   <!-- LeafletのJS -->
   <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
   <script>
+    // カスタムアイコンの定義（デフォルトは青、獲得済みは灰色）
+    var defaultIcon = new L.Icon({
+      iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-blue.png',
+      shadowUrl: 'https://unpkg.com/leaflet@1.6/dist/images/marker-shadow.png',
+      iconSize: [25, 41],
+      iconAnchor: [12, 41],
+      popupAnchor: [1, -34],
+      shadowSize: [41, 41]
+    });
+    var stampedIcon = new L.Icon({
+      iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-grey.png',
+      shadowUrl: 'https://unpkg.com/leaflet@1.6/dist/images/marker-shadow.png',
+      iconSize: [25, 41],
+      iconAnchor: [12, 41],
+      popupAnchor: [1, -34],
+      shadowSize: [41, 41]
+    });
+
     // 地図の初期設定（東京を中心に表示）
     var map = L.map('map').setView([35.6895, 139.6917], 13);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -88,11 +112,19 @@
       { id: 6, name: "スポットF", lat: 35.685, lng: 139.705, stamped: false }
     ];
 
-    // 地図上に各スポットのマーカーを追加
+    // 各スポットに対応するマーカーを作成して保存
     stampSpots.forEach(function(spot) {
-      var marker = L.marker([spot.lat, spot.lng]).addTo(map);
-      marker.bindPopup(spot.name);
+      spot.marker = L.marker([spot.lat, spot.lng], { icon: defaultIcon }).addTo(map);
+      spot.marker.bindPopup(spot.name);
     });
+
+    // 総ポイント
+    var totalPoints = 0;
+
+    // ポイント表示を更新する関数
+    function updatePointsDisplay() {
+      document.getElementById('pointsDisplay').innerText = "総ポイント: " + totalPoints;
+    }
 
     // スタンプカードのUIを更新する関数
     function updateStampCard() {
@@ -107,9 +139,16 @@
         btn.innerText = spot.stamped ? "獲得済み" : "スタンプ取得";
         btn.disabled = spot.stamped;
         btn.onclick = function() {
-          spot.stamped = true;
-          alert(spot.name + "のスタンプを獲得しました！");
-          updateStampCard();
+          if (!spot.stamped) {
+            spot.stamped = true;
+            // ポイントを加算（各スポットで2ポイント）
+            totalPoints += 2;
+            updatePointsDisplay();
+            alert(spot.name + "のスタンプを獲得しました！ 2ポイント獲得");
+            // マーカーのアイコンを更新して灰色に変更
+            spot.marker.setIcon(stampedIcon);
+            updateStampCard();
+          }
         };
         stampItem.appendChild(btn);
         stampCard.appendChild(stampItem);
@@ -117,6 +156,7 @@
     }
 
     updateStampCard();
+    updatePointsDisplay();
   </script>
 </body>
 </html>
