@@ -28,6 +28,11 @@
       flex: 1 1 calc(33.33% - 20px);
       text-align: center;
       min-width: 150px;
+      transition: border 0.3s;
+    }
+    /* ハイライト用スタイル */
+    .stamp-item.highlight {
+      border: 3px solid #ff0000;
     }
     .stamp-item.stamped { background: #d4edda; border-color: #c3e6cb; }
     .stamp-button {
@@ -115,8 +120,10 @@
       attribution: '&copy; OpenStreetMap contributors'
     }).addTo(map);
 
-    // グローバル変数：ユーザーの現在位置とその円
+    // グローバル変数：ユーザーの現在位置とその円、ハイライトするスポットID
     var userLocation = null;
+    var highlightedSpotId = null;
+
     // ユーザーの現在地を取得し、赤色のピンと半径100kmの円を追加
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(function(position) {
@@ -173,11 +180,19 @@
       { id: 31, name: "表木城址",   lat: 35.7861114, lng: 137.874874, stamped: false, photo: null, defaultImage: dummyImage, points: 10 }
     ];
 
-    // 各城のマーカーを作成してMarker Cluster Groupに追加
+    // 各城のマーカーを作成してMarker Cluster Groupに追加し、クリック時にズーム＆カードハイライト
     castleSpots.forEach(function(spot) {
       var marker = L.marker([spot.lat, spot.lng], { icon: defaultIcon });
       marker.bindPopup(spot.name);
       spot.marker = marker; // 後でアイコン変更等に利用
+      // クリック時の処理
+      marker.on('click', function() {
+        // その場所に最大ズーム（ここではズームレベル18）する
+        map.setView([spot.lat, spot.lng], 18);
+        // グローバル変数に対象のスポットIDを設定し、スタンプカードを更新
+        highlightedSpotId = spot.id;
+        updateStampCard();
+      });
       markers.addLayer(marker);
     });
     map.addLayer(markers);
@@ -203,7 +218,14 @@
       stampCard.innerHTML = "";
       castleSpots.forEach(function(spot) {
         var stampItem = document.createElement('div');
-        stampItem.className = 'stamp-item' + (spot.stamped ? ' stamped' : '');
+        // 各カードにIDを付与
+        stampItem.id = "stamp-card-" + spot.id;
+        // ハイライト状態ならクラスを追加
+        if (spot.id === highlightedSpotId) {
+          stampItem.className = 'stamp-item highlight' + (spot.stamped ? ' stamped' : '');
+        } else {
+          stampItem.className = 'stamp-item' + (spot.stamped ? ' stamped' : '');
+        }
         // デフォルト画像＋城名を表示
         stampItem.innerHTML = '<img src="' + spot.defaultImage + 
                               '" class="default-image" alt="' + spot.name + '"><h3>' + spot.name + '</h3>';
