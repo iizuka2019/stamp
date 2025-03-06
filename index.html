@@ -2,40 +2,54 @@
 <html lang="ja">
 <head>
   <meta charset="utf-8">
-  <title>スタンプラリー プロトタイプ</title>
+  <title>スタンプラリー UI</title>
   <!-- LeafletのCSS -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
   <style>
-    body {
-      margin: 0;
-      padding: 0;
-      font-family: Arial, sans-serif;
-    }
-    #map {
-      width: 100%;
-      height: 80vh;
-    }
-    .stamp-container {
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: Arial, sans-serif; background: #f5f5f5; }
+    header { background: #4CAF50; color: #fff; padding: 20px; text-align: center; }
+    #map { width: 100%; height: 50vh; }
+    .container { padding: 20px; }
+    .stamp-card { display: flex; flex-wrap: wrap; gap: 10px; }
+    .stamp-item {
+      background: #fff;
+      border: 1px solid #ccc;
+      border-radius: 5px;
+      padding: 10px;
+      flex: 1 1 calc(33.33% - 20px);
       text-align: center;
-      margin: 20px;
+      min-width: 150px;
     }
+    .stamp-item.stamped { background: #d4edda; border-color: #c3e6cb; }
     .stamp-button {
+      margin-top: 10px;
       background-color: #4CAF50;
       border: none;
       color: white;
-      padding: 15px 30px;
-      font-size: 16px;
+      padding: 10px;
+      font-size: 14px;
       cursor: pointer;
       border-radius: 5px;
     }
+    .stamp-button:disabled { background-color: #aaa; cursor: not-allowed; }
   </style>
 </head>
 <body>
+  <header>
+    <h1>スタンプラリー</h1>
+    <p>全てのスポットを巡ってスタンプを集めよう！</p>
+  </header>
+  
   <div id="map"></div>
-  <div class="stamp-container">
-    <button class="stamp-button" onclick="registerStamp()">スタンプを獲得</button>
+  
+  <div class="container">
+    <h2>スタンプカード</h2>
+    <div class="stamp-card" id="stampCard">
+      <!-- スタンプ情報がここに表示されます -->
+    </div>
   </div>
-
+  
   <!-- LeafletのJS -->
   <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
   <script>
@@ -45,15 +59,46 @@
       attribution: '&copy; OpenStreetMap contributors'
     }).addTo(map);
 
-    // サンプルのスタンプスポット（マーカー）
-    var marker = L.marker([35.6895, 139.6917]).addTo(map);
-    marker.bindPopup("スタンプスポット").openPopup();
+    // サンプルのスタンプスポットデータ
+    var stampSpots = [
+      { id: 1, name: "スポットA", lat: 35.6895, lng: 139.6917, stamped: false },
+      { id: 2, name: "スポットB", lat: 35.695, lng: 139.700, stamped: false },
+      { id: 3, name: "スポットC", lat: 35.682, lng: 139.710, stamped: false },
+      { id: 4, name: "スポットD", lat: 35.700, lng: 139.680, stamped: false },
+      { id: 5, name: "スポットE", lat: 35.688, lng: 139.695, stamped: false },
+      { id: 6, name: "スポットF", lat: 35.685, lng: 139.705, stamped: false }
+    ];
 
-    // スタンプ獲得をシミュレーションする関数
-    function registerStamp() {
-      alert("スタンプを獲得しました！");
-      // ここで、AJAX等を使ってバックエンドへスタンプ記録のリクエストを送る
+    // 地図上に各スポットのマーカーを追加
+    stampSpots.forEach(function(spot) {
+      var marker = L.marker([spot.lat, spot.lng]).addTo(map);
+      marker.bindPopup(spot.name);
+    });
+
+    // スタンプカードのUIを更新する関数
+    function updateStampCard() {
+      var stampCard = document.getElementById('stampCard');
+      stampCard.innerHTML = "";
+      stampSpots.forEach(function(spot) {
+        var stampItem = document.createElement('div');
+        stampItem.className = 'stamp-item' + (spot.stamped ? ' stamped' : '');
+        stampItem.innerHTML = '<h3>' + spot.name + '</h3>';
+        var btn = document.createElement('button');
+        btn.className = 'stamp-button';
+        btn.innerText = spot.stamped ? "獲得済み" : "スタンプ取得";
+        btn.disabled = spot.stamped;
+        btn.onclick = function() {
+          // スタンプ取得のシミュレーション
+          spot.stamped = true;
+          alert(spot.name + "のスタンプを獲得しました！");
+          updateStampCard();
+        };
+        stampItem.appendChild(btn);
+        stampCard.appendChild(stampItem);
+      });
     }
+
+    updateStampCard();
   </script>
 </body>
 </html>
