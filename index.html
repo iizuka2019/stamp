@@ -5,6 +5,9 @@
   <title>スタンプラリー UI</title>
   <!-- LeafletのCSS -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+  <!-- MarkerCluster CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.Default.css" />
   <style>
     * { box-sizing: border-box; }
     body { margin: 0; font-family: Arial, sans-serif; background: #f5f5f5; }
@@ -44,7 +47,7 @@
 <body>
   <header>
     <h1>スタンプラリー</h1>
-    <p>全てのスポットを巡ってスタンプを集めよう！</p>
+    <p>全国の城・城址を巡ってスタンプを集めよう！</p>
   </header>
   
   <div id="map"></div>
@@ -58,13 +61,15 @@
   </div>
   
   <footer>
-    リリース更新日: 2025-03-06 22:19:00
+    リリース更新日: 2025-03-06
   </footer>
   
   <!-- LeafletのJS -->
   <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+  <!-- MarkerCluster JS -->
+  <script src="https://unpkg.com/leaflet.markercluster/dist/leaflet.markercluster.js"></script>
   <script>
-    // カスタムアイコンの定義（デフォルトは青、獲得済みは灰色）
+    // カスタムアイコンの定義
     var defaultIcon = new L.Icon({
       iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-blue.png',
       shadowUrl: 'https://unpkg.com/leaflet@1.6/dist/images/marker-shadow.png',
@@ -81,19 +86,28 @@
       popupAnchor: [1, -34],
       shadowSize: [41, 41]
     });
+    // ユーザー現在地用の赤アイコン
+    var userIcon = new L.Icon({
+      iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-red.png',
+      shadowUrl: 'https://unpkg.com/leaflet@1.6/dist/images/marker-shadow.png',
+      iconSize: [25, 41],
+      iconAnchor: [12, 41],
+      popupAnchor: [1, -34],
+      shadowSize: [41, 41]
+    });
 
-    // 地図の初期設定（東京を中心に表示）
-    var map = L.map('map').setView([35.6895, 139.6917], 13);
+    // 地図の初期設定：日本全体が見えるように中心とズームを設定
+    var map = L.map('map').setView([36, 138], 5);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       attribution: '&copy; OpenStreetMap contributors'
     }).addTo(map);
 
-    // ユーザーの現在地を取得し、マップにピンを追加
+    // ユーザーの現在地を取得し、赤色のピンを追加
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(function(position) {
         var lat = position.coords.latitude;
         var lng = position.coords.longitude;
-        var currentLocationMarker = L.marker([lat, lng]).addTo(map);
+        var currentLocationMarker = L.marker([lat, lng], { icon: userIcon }).addTo(map);
         currentLocationMarker.bindPopup("あなたの現在地").openPopup();
       }, function(error) {
         console.error("Geolocation error: " + error.message);
@@ -102,21 +116,31 @@
       console.error("Geolocation is not supported by this browser.");
     }
 
-    // サンプルのスタンプスポットデータ
-    var stampSpots = [
-      { id: 1, name: "スポットA", lat: 35.6895, lng: 139.6917, stamped: false },
-      { id: 2, name: "スポットB", lat: 35.695, lng: 139.700, stamped: false },
-      { id: 3, name: "スポットC", lat: 35.682, lng: 139.710, stamped: false },
-      { id: 4, name: "スポットD", lat: 35.700, lng: 139.680, stamped: false },
-      { id: 5, name: "スポットE", lat: 35.688, lng: 139.695, stamped: false },
-      { id: 6, name: "スポットF", lat: 35.685, lng: 139.705, stamped: false }
+    // Marker Cluster Group の作成
+    var markers = L.markerClusterGroup();
+
+    // サンプルの城・城址のデータ（日本全国の主要なお城のサンプル）
+    var castleSpots = [
+      { id: 1, name: "姫路城", lat: 34.8394, lng: 134.6939, stamped: false },
+      { id: 2, name: "大阪城", lat: 34.6873, lng: 135.5259, stamped: false },
+      { id: 3, name: "名古屋城", lat: 35.185, lng: 136.9066, stamped: false },
+      { id: 4, name: "熊本城", lat: 32.8031, lng: 130.7079, stamped: false },
+      { id: 5, name: "松本城", lat: 36.2381, lng: 137.9681, stamped: false },
+      { id: 6, name: "弘前城", lat: 40.6045, lng: 140.4637, stamped: false },
+      { id: 7, name: "二条城", lat: 35.0214, lng: 135.7524, stamped: false },
+      { id: 8, name: "松山城", lat: 33.8394, lng: 132.7663, stamped: false },
+      { id: 9, name: "丸亀城", lat: 34.2772, lng: 133.7593, stamped: false },
+      { id: 10, name: "高知城", lat: 33.5597, lng: 133.5311, stamped: false }
     ];
 
-    // 各スポットに対応するマーカーを作成して保存
-    stampSpots.forEach(function(spot) {
-      spot.marker = L.marker([spot.lat, spot.lng], { icon: defaultIcon }).addTo(map);
-      spot.marker.bindPopup(spot.name);
+    // 各城のマーカーを作成してMarker Cluster Groupに追加
+    castleSpots.forEach(function(spot) {
+      var marker = L.marker([spot.lat, spot.lng], { icon: defaultIcon });
+      marker.bindPopup(spot.name);
+      spot.marker = marker; // 後でアイコン変更などに利用
+      markers.addLayer(marker);
     });
+    map.addLayer(markers);
 
     // 総ポイント
     var totalPoints = 0;
@@ -130,7 +154,7 @@
     function updateStampCard() {
       var stampCard = document.getElementById('stampCard');
       stampCard.innerHTML = "";
-      stampSpots.forEach(function(spot) {
+      castleSpots.forEach(function(spot) {
         var stampItem = document.createElement('div');
         stampItem.className = 'stamp-item' + (spot.stamped ? ' stamped' : '');
         stampItem.innerHTML = '<h3>' + spot.name + '</h3>';
@@ -141,11 +165,10 @@
         btn.onclick = function() {
           if (!spot.stamped) {
             spot.stamped = true;
-            // ポイントを加算（各スポットで2ポイント）
-            totalPoints += 2;
+            totalPoints += 2; // 各スポット獲得で2ポイント
             updatePointsDisplay();
             alert(spot.name + "のスタンプを獲得しました！ 2ポイント獲得");
-            // マーカーのアイコンを更新して灰色に変更
+            // マーカーのアイコンを灰色に変更
             spot.marker.setIcon(stampedIcon);
             updateStampCard();
           }
