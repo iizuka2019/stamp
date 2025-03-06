@@ -41,6 +41,12 @@
       border-radius: 5px;
     }
     .stamp-button:disabled { background-color: #aaa; cursor: not-allowed; }
+    .preview-image {
+      width: 100%;
+      max-height: 100px;
+      margin-top: 5px;
+      border: 1px solid #ccc;
+    }
     footer { background: #eee; padding: 10px; text-align: center; font-size: 12px; color: #666; }
   </style>
 </head>
@@ -102,9 +108,9 @@
       attribution: '&copy; OpenStreetMap contributors'
     }).addTo(map);
 
-    // ユーザーの現在地（グローバル変数）
+    // グローバル変数：ユーザーの現在位置とその円
     var userLocation = null;
-    // ユーザーの現在地を取得し、赤色のピンと100kmの円を追加
+    // ユーザーの現在地を取得し、赤色のピンと半径100kmの円を追加
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(function(position) {
         var lat = position.coords.latitude;
@@ -112,7 +118,6 @@
         userLocation = L.latLng(lat, lng);
         var currentLocationMarker = L.marker([lat, lng], { icon: userIcon }).addTo(map);
         currentLocationMarker.bindPopup("あなたの現在地").openPopup();
-        // 半径100kmの円を描画
         L.circle(userLocation, { radius: 100000, color: '#ff0000', fillOpacity: 0.1 }).addTo(map);
         updateStampCard();
       }, function(error) {
@@ -127,36 +132,36 @@
 
     // サンプルの城・城址のデータ（全30件）
     var castleSpots = [
-      { id: 1,  name: "姫路城",     lat: 34.8394, lng: 134.6939, stamped: false },
-      { id: 2,  name: "大阪城",     lat: 34.6873, lng: 135.5259, stamped: false },
-      { id: 3,  name: "名古屋城",   lat: 35.1850, lng: 136.9066, stamped: false },
-      { id: 4,  name: "熊本城",     lat: 32.8031, lng: 130.7079, stamped: false },
-      { id: 5,  name: "松本城",     lat: 36.2381, lng: 137.9681, stamped: false },
-      { id: 6,  name: "弘前城",     lat: 40.6045, lng: 140.4637, stamped: false },
-      { id: 7,  name: "二条城",     lat: 35.0214, lng: 135.7524, stamped: false },
-      { id: 8,  name: "松山城",     lat: 33.8394, lng: 132.7663, stamped: false },
-      { id: 9,  name: "丸亀城",     lat: 34.2772, lng: 133.7593, stamped: false },
-      { id: 10, name: "高知城",     lat: 33.5597, lng: 133.5311, stamped: false },
-      { id: 11, name: "岡山城",     lat: 34.6551, lng: 133.9183, stamped: false },
-      { id: 12, name: "金沢城",     lat: 36.5613, lng: 136.6562, stamped: false },
-      { id: 13, name: "福山城",     lat: 34.4833, lng: 133.3640, stamped: false },
-      { id: 14, name: "江戸城跡",   lat: 35.6852, lng: 139.7528, stamped: false },
-      { id: 15, name: "敦賀城",     lat: 35.6000, lng: 135.2000, stamped: false },
-      { id: 16, name: "伊賀上野城", lat: 34.7333, lng: 136.1833, stamped: false },
-      { id: 17, name: "彦根城",     lat: 35.2753, lng: 136.1264, stamped: false },
-      { id: 18, name: "松江城",     lat: 35.4667, lng: 133.0500, stamped: false },
-      { id: 19, name: "宇和島城",   lat: 33.9833, lng: 132.7667, stamped: false },
-      { id: 20, name: "犬山城",     lat: 35.3250, lng: 136.9500, stamped: false },
-      { id: 21, name: "岩国城",     lat: 34.1667, lng: 132.1833, stamped: false },
-      { id: 22, name: "会津若松城", lat: 37.4922, lng: 139.9292, stamped: false },
-      { id: 23, name: "広島城",     lat: 34.3956, lng: 132.4597, stamped: false },
-      { id: 24, name: "上田城",     lat: 36.3843, lng: 138.2494, stamped: false },
-      { id: 25, name: "小田原城",   lat: 35.2550, lng: 139.1500, stamped: false },
-      { id: 26, name: "鹿児島城",   lat: 31.5600, lng: 130.5581, stamped: false },
-      { id: 27, name: "首里城",     lat: 26.2173, lng: 127.7170, stamped: false },
-      { id: 28, name: "堺城",       lat: 34.5673, lng: 135.5159, stamped: false },
-      { id: 29, name: "上野城",     lat: 35.7184, lng: 139.7121, stamped: false },
-      { id: 30, name: "津山城",     lat: 35.3308, lng: 134.0552, stamped: false }
+      { id: 1,  name: "姫路城",     lat: 34.8394, lng: 134.6939, stamped: false, photo: null },
+      { id: 2,  name: "大阪城",     lat: 34.6873, lng: 135.5259, stamped: false, photo: null },
+      { id: 3,  name: "名古屋城",   lat: 35.1850, lng: 136.9066, stamped: false, photo: null },
+      { id: 4,  name: "熊本城",     lat: 32.8031, lng: 130.7079, stamped: false, photo: null },
+      { id: 5,  name: "松本城",     lat: 36.2381, lng: 137.9681, stamped: false, photo: null },
+      { id: 6,  name: "弘前城",     lat: 40.6045, lng: 140.4637, stamped: false, photo: null },
+      { id: 7,  name: "二条城",     lat: 35.0214, lng: 135.7524, stamped: false, photo: null },
+      { id: 8,  name: "松山城",     lat: 33.8394, lng: 132.7663, stamped: false, photo: null },
+      { id: 9,  name: "丸亀城",     lat: 34.2772, lng: 133.7593, stamped: false, photo: null },
+      { id: 10, name: "高知城",     lat: 33.5597, lng: 133.5311, stamped: false, photo: null },
+      { id: 11, name: "岡山城",     lat: 34.6551, lng: 133.9183, stamped: false, photo: null },
+      { id: 12, name: "金沢城",     lat: 36.5613, lng: 136.6562, stamped: false, photo: null },
+      { id: 13, name: "福山城",     lat: 34.4833, lng: 133.3640, stamped: false, photo: null },
+      { id: 14, name: "江戸城跡",   lat: 35.6852, lng: 139.7528, stamped: false, photo: null },
+      { id: 15, name: "敦賀城",     lat: 35.6000, lng: 135.2000, stamped: false, photo: null },
+      { id: 16, name: "伊賀上野城", lat: 34.7333, lng: 136.1833, stamped: false, photo: null },
+      { id: 17, name: "彦根城",     lat: 35.2753, lng: 136.1264, stamped: false, photo: null },
+      { id: 18, name: "松江城",     lat: 35.4667, lng: 133.0500, stamped: false, photo: null },
+      { id: 19, name: "宇和島城",   lat: 33.9833, lng: 132.7667, stamped: false, photo: null },
+      { id: 20, name: "犬山城",     lat: 35.3250, lng: 136.9500, stamped: false, photo: null },
+      { id: 21, name: "岩国城",     lat: 34.1667, lng: 132.1833, stamped: false, photo: null },
+      { id: 22, name: "会津若松城", lat: 37.4922, lng: 139.9292, stamped: false, photo: null },
+      { id: 23, name: "広島城",     lat: 34.3956, lng: 132.4597, stamped: false, photo: null },
+      { id: 24, name: "上田城",     lat: 36.3843, lng: 138.2494, stamped: false, photo: null },
+      { id: 25, name: "小田原城",   lat: 35.2550, lng: 139.1500, stamped: false, photo: null },
+      { id: 26, name: "鹿児島城",   lat: 31.5600, lng: 130.5581, stamped: false, photo: null },
+      { id: 27, name: "首里城",     lat: 26.2173, lng: 127.7170, stamped: false, photo: null },
+      { id: 28, name: "堺城",       lat: 34.5673, lng: 135.5159, stamped: false, photo: null },
+      { id: 29, name: "上野城",     lat: 35.7184, lng: 139.7121, stamped: false, photo: null },
+      { id: 30, name: "津山城",     lat: 35.3308, lng: 134.0552, stamped: false, photo: null }
     ];
 
     // 各城のマーカーを作成してMarker Cluster Groupに追加
@@ -183,7 +188,7 @@
       document.getElementById('pointsDisplay').innerText = "総ポイント: " + totalPoints;
     }
 
-    // スタンプカードのUIを更新する関数
+    // スタンプカードのUIを更新する関数（写真撮影・スタンプ取得・SNSシェアの流れを実装）
     function updateStampCard() {
       var stampCard = document.getElementById('stampCard');
       stampCard.innerHTML = "";
@@ -191,31 +196,96 @@
         var stampItem = document.createElement('div');
         stampItem.className = 'stamp-item' + (spot.stamped ? ' stamped' : '');
         stampItem.innerHTML = '<h3>' + spot.name + '</h3>';
-        var btn = document.createElement('button');
-        btn.className = 'stamp-button';
-        // 判定：既に獲得済みなら「獲得済み」、まだでかつ圏内なら「スタンプ取得」、圏外なら「圏外」
-        if (spot.stamped) {
-          btn.innerText = "獲得済み";
-          btn.disabled = true;
-        } else if (userLocation && !isWithinRange(spot.lat, spot.lng)) {
-          btn.innerText = "圏外";
-          btn.disabled = true;
+        
+        // ボタンやファイル入力などを入れるコンテナ
+        var actionContainer = document.createElement('div');
+
+        // ユーザーが圏内にいるかチェック
+        if (!userLocation || !isWithinRange(spot.lat, spot.lng)) {
+          // 圏外の場合：ボタンは「圏外」かつ無効
+          var btnOut = document.createElement('button');
+          btnOut.className = 'stamp-button';
+          btnOut.innerText = "圏外";
+          btnOut.disabled = true;
+          actionContainer.appendChild(btnOut);
         } else {
-          btn.innerText = "スタンプ取得";
-          btn.disabled = false;
-          btn.onclick = function() {
-            if (!spot.stamped) {
-              spot.stamped = true;
-              totalPoints += 2; // 各スポット獲得で2ポイント
-              updatePointsDisplay();
-              alert(spot.name + "のスタンプを獲得しました！ 2ポイント獲得");
-              // マーカーのアイコンを灰色に変更
-              spot.marker.setIcon(stampedIcon);
-              updateStampCard();
+          // 圏内の場合
+          if (!spot.stamped) {
+            // スタンプ未取得の場合
+            if (!spot.photo) {
+              // 写真未撮影の場合：写真撮影ボタンと隠しファイル入力を表示
+              var photoBtn = document.createElement('button');
+              photoBtn.className = 'stamp-button';
+              photoBtn.innerText = "写真を撮る";
+              // 隠しファイル入力
+              var fileInput = document.createElement('input');
+              fileInput.type = "file";
+              fileInput.accept = "image/*";
+              fileInput.style.display = "none";
+              // 写真撮影ボタンのクリックでファイル入力を起動
+              photoBtn.onclick = function() {
+                fileInput.click();
+              };
+              // ファイル選択時の処理
+              fileInput.onchange = function(event) {
+                if (event.target.files && event.target.files[0]) {
+                  // 撮影された画像のURLを生成し保存
+                  spot.photo = URL.createObjectURL(event.target.files[0]);
+                  updateStampCard();
+                }
+              };
+              actionContainer.appendChild(photoBtn);
+              actionContainer.appendChild(fileInput);
+            } else {
+              // 写真が撮影済の場合：スタンプ取得ボタンを表示
+              var stampBtn = document.createElement('button');
+              stampBtn.className = 'stamp-button';
+              stampBtn.innerText = "スタンプ取得";
+              stampBtn.onclick = function() {
+                if (!spot.stamped) {
+                  spot.stamped = true;
+                  totalPoints += 2; // 獲得で2ポイント
+                  updatePointsDisplay();
+                  alert(spot.name + "のスタンプを獲得しました！ 2ポイント獲得");
+                  // マーカーのアイコンを灰色に変更
+                  spot.marker.setIcon(stampedIcon);
+                  updateStampCard();
+                }
+              };
+              actionContainer.appendChild(stampBtn);
+              // 写真のプレビューを表示（任意）
+              var imgPreview = document.createElement('img');
+              imgPreview.src = spot.photo;
+              imgPreview.className = "preview-image";
+              actionContainer.appendChild(imgPreview);
             }
-          };
+          } else {
+            // すでにスタンプ取得済の場合：獲得済みボタンとSNSシェアボタンを表示
+            var obtainedBtn = document.createElement('button');
+            obtainedBtn.className = 'stamp-button';
+            obtainedBtn.innerText = "獲得済み";
+            obtainedBtn.disabled = true;
+            actionContainer.appendChild(obtainedBtn);
+            var shareBtn = document.createElement('button');
+            shareBtn.className = 'stamp-button';
+            shareBtn.innerText = "SNSでシェア";
+            shareBtn.onclick = function() {
+              // 例としてTwitterのシェアURLを生成
+              var text = encodeURIComponent(spot.name + "のスタンプを獲得しました！");
+              var url = encodeURIComponent(window.location.href);
+              window.open("https://twitter.com/intent/tweet?text=" + text + "&url=" + url, "_blank");
+            };
+            actionContainer.appendChild(shareBtn);
+            // 撮影済みの写真プレビューも表示
+            if (spot.photo) {
+              var imgPreviewStamped = document.createElement('img');
+              imgPreviewStamped.src = spot.photo;
+              imgPreviewStamped.className = "preview-image";
+              actionContainer.appendChild(imgPreviewStamped);
+            }
+          }
         }
-        stampItem.appendChild(btn);
+        stampItem.appendChild(actionContainer);
         stampCard.appendChild(stampItem);
       });
     }
