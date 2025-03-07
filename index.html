@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
   <meta charset="utf-8">
-  <title>スタンプラリー UI</title>
+  <title>スタンプラリー UI with Firebase Auth</title>
   <!-- LeafletのCSS -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
   <!-- MarkerCluster CSS -->
@@ -12,6 +12,7 @@
     * { box-sizing: border-box; }
     body { margin: 0; font-family: Arial, sans-serif; background: #f5f5f5; }
     header { background: #4CAF50; color: #fff; padding: 20px; text-align: center; }
+    #loginControls { margin-top: 10px; }
     #map { width: 100%; height: 50vh; }
     .container { padding: 20px; }
     #pointsDisplay { font-size: 18px; margin-bottom: 10px; text-align: center; }
@@ -55,12 +56,92 @@
       border: 1px solid #ccc;
     }
     footer { background: #eee; padding: 10px; text-align: center; font-size: 12px; color: #666; }
+    /* ログインフォーム用 */
+    .auth-form { margin: 10px auto; max-width: 300px; }
+    .auth-form input { width: 100%; padding: 8px; margin: 5px 0; }
+    .auth-form button { width: 48%; padding: 8px; margin: 5px 1%; }
   </style>
+  <!-- Firebase SDK（compat版） -->
+  <script src="https://www.gstatic.com/firebasejs/9.21.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.21.0/firebase-auth-compat.js"></script>
+  <script>
+    // Firebaseの設定情報
+    const firebaseConfig = {
+      apiKey: "AIzaSyDKoSPR75Je99OtMywNCx7Wdufo2sqRo0Q",
+      authDomain: "stamprally-202503.firebaseapp.com",
+      projectId: "stamprally-202503",
+      storageBucket: "stamprally-202503.firebasestorage.app",
+      messagingSenderId: "302159612226",
+      appId: "1:302159612226:web:b33b58c902b33b00c9a0db"
+    };
+    firebase.initializeApp(firebaseConfig);
+    const auth = firebase.auth();
+
+    // サインアップ（メール/パスワード）
+    function signUp() {
+      const email = document.getElementById("signupEmail").value;
+      const password = document.getElementById("signupPassword").value;
+      auth.createUserWithEmailAndPassword(email, password)
+        .then((userCredential) => {
+          alert("サインアップ成功: " + userCredential.user.email);
+        })
+        .catch((error) => {
+          alert("エラー: " + error.message);
+        });
+    }
+
+    // サインイン（メール/パスワード）
+    function signIn() {
+      const email = document.getElementById("loginEmail").value;
+      const password = document.getElementById("loginPassword").value;
+      auth.signInWithEmailAndPassword(email, password)
+        .then((userCredential) => {
+          alert("サインイン成功: " + userCredential.user.email);
+        })
+        .catch((error) => {
+          alert("エラー: " + error.message);
+        });
+    }
+
+    function signOut() {
+      auth.signOut().then(() => {
+        alert("サインアウトしました");
+      }).catch((error) => {
+        alert("エラー: " + error.message);
+      });
+    }
+
+    // 認証状態の監視
+    auth.onAuthStateChanged((user) => {
+      if (user) {
+        document.getElementById("loginStatus").innerText = "Logged in as: " + user.email;
+        document.getElementById("authForm").style.display = "none";
+        document.getElementById("signOutBtn").style.display = "inline-block";
+      } else {
+        document.getElementById("loginStatus").innerText = "Not logged in";
+        document.getElementById("authForm").style.display = "block";
+        document.getElementById("signOutBtn").style.display = "none";
+      }
+    });
+  </script>
 </head>
 <body>
   <header>
     <h1>スタンプラリー</h1>
     <p>全国の城・城址を巡ってスタンプを集めよう！</p>
+    <!-- ログイン/サインアップ用フォーム -->
+    <div id="loginControls">
+      <span id="loginStatus">Not logged in</span>
+      <div id="authForm" class="auth-form">
+        <input type="email" id="signupEmail" placeholder="Sign Up Email">
+        <input type="password" id="signupPassword" placeholder="Sign Up Password">
+        <button onclick="signUp()">Sign Up</button><br>
+        <input type="email" id="loginEmail" placeholder="Sign In Email">
+        <input type="password" id="loginPassword" placeholder="Sign In Password">
+        <button onclick="signIn()">Sign In</button>
+      </div>
+      <button id="signOutBtn" onclick="signOut()" style="display:none;">Sign Out</button>
+    </div>
   </header>
   
   <div id="map"></div>
@@ -75,9 +156,8 @@
   
   <footer>リリース更新日: 2025-03-06</footer>
   
-  <!-- LeafletのJS -->
+  <!-- LeafletとMarkerCluster -->
   <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
-  <!-- MarkerCluster JS -->
   <script src="https://unpkg.com/leaflet.markercluster/dist/leaflet.markercluster.js"></script>
   <script>
     // カスタムアイコンの定義
@@ -97,7 +177,6 @@
       popupAnchor: [1, -34],
       shadowSize: [41, 41]
     });
-    // ユーザー現在地用の赤アイコン
     var userIcon = new L.Icon({
       iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-red.png',
       shadowUrl: 'https://unpkg.com/leaflet@1.6/dist/images/marker-shadow.png',
@@ -107,17 +186,16 @@
       shadowSize: [41, 41]
     });
 
-    // 地図の初期設定：日本全体が見えるように中心とズームを設定
+    // 地図の初期設定（日本全体を表示）
     var map = L.map('map').setView([36, 138], 5);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       attribution: '&copy; OpenStreetMap contributors'
     }).addTo(map);
 
-    // グローバル変数：ユーザーの現在位置、ハイライトするスポットID
     var userLocation = null;
     var highlightedSpotId = null;
-
-    // ユーザーの現在地を取得し、赤色のピンと半径100kmの円を追加
+    
+    // ユーザーの現在地を取得して赤ピンと100km円を表示
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(function(position) {
         var lat = position.coords.latitude;
@@ -134,11 +212,9 @@
       console.error("Geolocation is not supported by this browser.");
     }
 
-    // Marker Cluster Group の作成
     var markers = L.markerClusterGroup();
 
-    // サンプルの城・城址のデータ（全30件＋表木城址：計31件）
-    // 各スポットに都道府県情報を追加
+    // サンプルの城・城址データ（都道府県情報付き、表木城址は10ポイント）
     var dummyImage = "https://gigaplus.makeshop.jp/hw2019/images/pages/page2/takane_img06.jpg";
     var castleSpots = [
       { id: 1,  name: "姫路城",     lat: 34.8394, lng: 134.6939, stamped: false, photo: null, defaultImage: dummyImage, prefecture: "兵庫県" },
@@ -174,7 +250,6 @@
       { id: 31, name: "表木城址",   lat: 35.7861114, lng: 137.874874, stamped: false, photo: null, defaultImage: dummyImage, points: 10, prefecture: "岐阜県" }
     ];
 
-    // 各城のマーカー作成、クリック時にズーム＆カードハイライト
     castleSpots.forEach(function(spot) {
       var marker = L.marker([spot.lat, spot.lng], { icon: defaultIcon });
       marker.bindPopup(spot.name);
@@ -188,10 +263,8 @@
     });
     map.addLayer(markers);
 
-    // 総ポイント
     var totalPoints = 0;
     
-    // ユーザーの現在位置からの距離チェック（100km=100000m）
     function isWithinRange(spotLat, spotLng) {
       if (!userLocation) return false;
       return userLocation.distanceTo(L.latLng(spotLat, spotLng)) <= 100000;
@@ -201,18 +274,16 @@
       document.getElementById('pointsDisplay').innerText = "総ポイント: " + totalPoints;
     }
 
-    // スタンプカード更新（都道府県ごとにグループ分けして表示）
+    // 都道府県ごとにグループ分けしてスタンプカードを表示
     function updateStampCard() {
       var stampCard = document.getElementById('stampCard');
       stampCard.innerHTML = "";
-      // 都道府県ごとにグループ分け
       var groups = {};
       castleSpots.forEach(function(spot) {
         var pref = spot.prefecture || "その他";
         if (!groups[pref]) groups[pref] = [];
         groups[pref].push(spot);
       });
-      // 各グループごとに表示
       for (var pref in groups) {
         var groupDiv = document.createElement('div');
         groupDiv.className = "prefecture-group";
@@ -231,12 +302,9 @@
           if (spot.id === highlightedSpotId) {
             stampItem.classList.add("highlight");
           }
-          // デフォルト画像＋城名表示
           stampItem.innerHTML = '<img src="' + spot.defaultImage + 
                                 '" class="default-image" alt="' + spot.name + '"><h3>' + spot.name + '</h3>';
-          
           var actionContainer = document.createElement('div');
-          // 圏内チェック
           if (!userLocation || !isWithinRange(spot.lat, spot.lng)) {
             var btnOut = document.createElement('button');
             btnOut.className = 'stamp-button';
@@ -258,7 +326,6 @@
                   if (event.target.files && event.target.files[0]) {
                     var file = event.target.files[0];
                     spot.photo = URL.createObjectURL(file);
-                    // 保存しておくファイルオブジェクトを利用（Web Share API用）
                     spot.photoFile = file;
                     updateStampCard();
                   }
@@ -296,13 +363,13 @@
               shareBtn.className = 'stamp-button';
               shareBtn.innerText = "SNSでシェア";
               shareBtn.onclick = function() {
-                // Web Share APIでファイルシェアが可能なら実行
                 if (navigator.share && spot.photoFile && navigator.canShare && navigator.canShare({files: [spot.photoFile]})) {
                   navigator.share({
                     title: spot.name + "のスタンプ",
                     text: spot.name + "のスタンプを獲得しました！",
                     files: [spot.photoFile]
-                  }).then(() => console.log("Shared successfully")).catch((error) => console.log("Error sharing", error));
+                  }).then(() => console.log("Shared successfully"))
+                    .catch((error) => console.log("Error sharing", error));
                 } else {
                   var text = encodeURIComponent(spot.name + "のスタンプを獲得しました！");
                   var url = encodeURIComponent(window.location.href);
