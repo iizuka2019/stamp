@@ -11,8 +11,55 @@
   <style>
     * { box-sizing: border-box; }
     body { margin: 0; font-family: Arial, sans-serif; background: #f5f5f5; }
-    header { background: #4CAF50; color: #fff; padding: 20px; text-align: center; }
-    #loginControls { margin-top: 10px; }
+    header { background: #4CAF50; color: #fff; padding: 20px; text-align: center; position: relative; }
+    /* ハンバーガーメニュー用ボタン */
+    #menuToggle {
+      position: absolute;
+      left: 20px;
+      top: 20px;
+      font-size: 24px;
+      background: none;
+      border: none;
+      color: #fff;
+      cursor: pointer;
+    }
+    /* ハンバーガーメニュー本体 */
+    #hamburgerMenu {
+      position: fixed;
+      top: 0;
+      left: -260px;
+      width: 250px;
+      height: 100%;
+      background: #fff;
+      box-shadow: 2px 0 5px rgba(0,0,0,0.3);
+      z-index: 1000;
+      transition: left 0.3s ease;
+      padding: 20px;
+    }
+    #hamburgerMenu.active {
+      left: 0;
+    }
+    #hamburgerMenu h2 {
+      margin-top: 0;
+      font-size: 20px;
+      border-bottom: 1px solid #ccc;
+      padding-bottom: 10px;
+    }
+    /* 閉じるボタン */
+    #menuClose {
+      background: none;
+      border: none;
+      font-size: 24px;
+      position: absolute;
+      right: 10px;
+      top: 10px;
+      cursor: pointer;
+    }
+    /* 認証フォーム */
+    .auth-form { margin-top: 40px; }
+    .auth-form input { width: 100%; padding: 8px; margin: 5px 0; }
+    .auth-form button { width: 48%; padding: 8px; margin: 5px 1%; }
+    
     #map { width: 100%; height: 50vh; }
     .container { padding: 20px; }
     #pointsDisplay { font-size: 18px; margin-bottom: 10px; text-align: center; }
@@ -56,16 +103,12 @@
       border: 1px solid #ccc;
     }
     footer { background: #eee; padding: 10px; text-align: center; font-size: 12px; color: #666; }
-    /* ログインフォーム用 */
-    .auth-form { margin: 10px auto; max-width: 300px; }
-    .auth-form input { width: 100%; padding: 8px; margin: 5px 0; }
-    .auth-form button { width: 48%; padding: 8px; margin: 5px 1%; }
   </style>
   <!-- Firebase SDK（compat版） -->
   <script src="https://www.gstatic.com/firebasejs/9.21.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.21.0/firebase-auth-compat.js"></script>
   <script>
-    // Firebaseの設定情報
+    // Firebaseの設定情報（そのままご利用ください）
     const firebaseConfig = {
       apiKey: "AIzaSyDKoSPR75Je99OtMywNCx7Wdufo2sqRo0Q",
       authDomain: "stamprally-202503.firebaseapp.com",
@@ -77,35 +120,35 @@
     firebase.initializeApp(firebaseConfig);
     const auth = firebase.auth();
 
-    // サインアップ（メール/パスワード）
-    function signUp() {
+    // メール/パスワードによる新規登録
+    function 新規登録() {
       const email = document.getElementById("signupEmail").value;
       const password = document.getElementById("signupPassword").value;
       auth.createUserWithEmailAndPassword(email, password)
         .then((userCredential) => {
-          alert("サインアップ成功: " + userCredential.user.email);
+          alert("新規登録成功: " + userCredential.user.email);
         })
         .catch((error) => {
           alert("エラー: " + error.message);
         });
     }
 
-    // サインイン（メール/パスワード）
-    function signIn() {
+    // メール/パスワードによるログイン
+    function ログイン() {
       const email = document.getElementById("loginEmail").value;
       const password = document.getElementById("loginPassword").value;
       auth.signInWithEmailAndPassword(email, password)
         .then((userCredential) => {
-          alert("サインイン成功: " + userCredential.user.email);
+          alert("ログイン成功: " + userCredential.user.email);
         })
         .catch((error) => {
           alert("エラー: " + error.message);
         });
     }
 
-    function signOut() {
+    function ログアウト() {
       auth.signOut().then(() => {
-        alert("サインアウトしました");
+        alert("ログアウトしました");
       }).catch((error) => {
         alert("エラー: " + error.message);
       });
@@ -114,35 +157,50 @@
     // 認証状態の監視
     auth.onAuthStateChanged((user) => {
       if (user) {
-        document.getElementById("loginStatus").innerText = "Logged in as: " + user.email;
+        document.getElementById("loginStatus").innerText = "ログイン中: " + user.email;
+        // 認証フォームは非表示
         document.getElementById("authForm").style.display = "none";
-        document.getElementById("signOutBtn").style.display = "inline-block";
+        document.getElementById("logoutBtn").style.display = "inline-block";
       } else {
-        document.getElementById("loginStatus").innerText = "Not logged in";
+        document.getElementById("loginStatus").innerText = "未ログイン";
         document.getElementById("authForm").style.display = "block";
-        document.getElementById("signOutBtn").style.display = "none";
+        document.getElementById("logoutBtn").style.display = "none";
       }
     });
+
+    // ハンバーガーメニューの開閉制御
+    function openMenu() {
+      document.getElementById("hamburgerMenu").classList.add("active");
+    }
+    function closeMenu() {
+      document.getElementById("hamburgerMenu").classList.remove("active");
+    }
   </script>
 </head>
 <body>
   <header>
+    <!-- ハンバーガーメニュー用ボタン -->
+    <button id="menuToggle" onclick="openMenu()">☰</button>
     <h1>スタンプラリー</h1>
     <p>全国の城・城址を巡ってスタンプを集めよう！</p>
-    <!-- ログイン/サインアップ用フォーム -->
-    <div id="loginControls">
-      <span id="loginStatus">Not logged in</span>
-      <div id="authForm" class="auth-form">
-        <input type="email" id="signupEmail" placeholder="Sign Up Email">
-        <input type="password" id="signupPassword" placeholder="Sign Up Password">
-        <button onclick="signUp()">Sign Up</button><br>
-        <input type="email" id="loginEmail" placeholder="Sign In Email">
-        <input type="password" id="loginPassword" placeholder="Sign In Password">
-        <button onclick="signIn()">Sign In</button>
-      </div>
-      <button id="signOutBtn" onclick="signOut()" style="display:none;">Sign Out</button>
-    </div>
+    <div id="loginStatus" style="margin-top:10px;">未ログイン</div>
   </header>
+  
+  <!-- ハンバーガーメニュー本体 -->
+  <div id="hamburgerMenu">
+    <button id="menuClose" onclick="closeMenu()">×</button>
+    <h2>ユーザー認証</h2>
+    <div id="authForm" class="auth-form">
+      <input type="email" id="signupEmail" placeholder="メールアドレス（新規登録）">
+      <input type="password" id="signupPassword" placeholder="パスワード（新規登録）">
+      <button onclick="新規登録()">新規登録</button>
+      <br>
+      <input type="email" id="loginEmail" placeholder="メールアドレス（ログイン）">
+      <input type="password" id="loginPassword" placeholder="パスワード（ログイン）">
+      <button onclick="ログイン()">ログイン</button>
+    </div>
+    <button id="logoutBtn" onclick="ログアウト()" style="display:none;">ログアウト</button>
+  </div>
   
   <div id="map"></div>
   
