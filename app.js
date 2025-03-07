@@ -250,6 +250,15 @@ if (navigator.geolocation) {
     }
     if (userCircle) {
       userCircle.setLatLng(userLocation);
+    } else {
+      // サークルが存在しなければ再生成
+      userCircle = L.circle(userLocation, {
+        radius: 50000,
+        color: '#a2d9ff',
+        fillColor: '#a2d9ff',
+        fillOpacity: 0.1,
+        stroke: false
+      }).addTo(map);
     }
     updateStampCard();
   }, error => {
