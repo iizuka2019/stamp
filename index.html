@@ -35,6 +35,7 @@
       z-index: 1000;
       transition: left 0.3s ease;
       padding: 20px;
+      overflow-y: auto;
     }
     #hamburgerMenu.active { left: 0; }
     #hamburgerMenu h2 { margin-top: 0; font-size: 20px; border-bottom: 1px solid #ccc; padding-bottom: 10px; }
@@ -45,6 +46,11 @@
     .auth-form { margin-top: 40px; }
     .auth-form input { width: 100%; padding: 8px; margin: 5px 0; }
     .auth-form button { width: 48%; padding: 8px; margin: 5px 1%; }
+    /* ランキング表示 */
+    #rankingSection { margin-top: 30px; }
+    #rankingSection h2 { font-size: 18px; border-bottom: 1px solid #ccc; padding-bottom: 5px; }
+    #rankingList div { padding: 5px 0; border-bottom: 1px dashed #ddd; font-size: 14px; }
+    
     #map { width: 100%; height: 50vh; }
     .container { padding: 20px; }
     #pointsDisplay { font-size: 18px; margin-bottom: 10px; text-align: center; }
@@ -76,7 +82,7 @@
   <script src="https://www.gstatic.com/firebasejs/9.21.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.21.0/firebase-firestore-compat.js"></script>
   <script>
-    // Firebaseの設定（ご自身のプロジェクトの情報に置き換えてください）
+    // Firebaseの設定情報（プロジェクトの情報に置き換えてください）
     const firebaseConfig = {
       apiKey: "AIzaSyDKoSPR75Je99OtMywNCx7Wdufo2sqRo0Q",
       authDomain: "stamprally-202503.firebaseapp.com",
@@ -89,7 +95,7 @@
     const auth = firebase.auth();
     const db = firebase.firestore();
 
-    // 新規登録時に氏名も登録（displayName）
+    // 新規登録時に氏名も登録（displayName）とユーザーデータ作成
     function 新規登録() {
       const name = document.getElementById("signupName").value;
       const email = document.getElementById("signupEmail").value;
@@ -99,11 +105,13 @@
           const user = userCredential.user;
           user.updateProfile({ displayName: name }).then(() => {
             alert("新規登録成功: " + user.email);
-            // 初期ユーザーデータ作成
+            // ユーザードキュメント作成（displayNameも保存）
             db.collection("users").doc(user.uid).set({
+              displayName: name,
               totalPoints: 0,
               stampStatuses: {}
             });
+            loadRanking();
           });
         })
         .catch((error) => { alert("エラー: " + error.message); });
@@ -116,6 +124,7 @@
         .then((userCredential) => {
           alert("ログイン成功: " + userCredential.user.email);
           loadUserData(userCredential.user.uid);
+          loadRanking();
         })
         .catch((error) => { alert("エラー: " + error.message); });
     }
@@ -129,20 +138,6 @@
         updateStampCard();
       }).catch((error) => { alert("エラー: " + error.message); });
     }
-
-    // 認証状態の監視
-    auth.onAuthStateChanged((user) => {
-      if (user) {
-        document.getElementById("loginStatus").innerText = "ログイン中: " + user.displayName;
-        document.getElementById("authForm").style.display = "none";
-        document.getElementById("logoutBtn").style.display = "inline-block";
-        loadUserData(user.uid);
-      } else {
-        document.getElementById("loginStatus").innerText = "未ログイン";
-        document.getElementById("authForm").style.display = "block";
-        document.getElementById("logoutBtn").style.display = "none";
-      }
-    });
 
     // Firestoreからユーザーデータを読み込み
     function loadUserData(uid) {
@@ -173,8 +168,41 @@
           totalPoints: totalPoints,
           stampStatuses: stampStatuses
         }, { merge: true });
+        loadRanking();
       }
     }
+
+    // ランキング機能：Firestoreから上位10名のユーザーデータを取得して表示
+    function loadRanking() {
+      db.collection("users")
+        .orderBy("totalPoints", "desc")
+        .limit(10)
+        .get()
+        .then((querySnapshot) => {
+          let html = "";
+          querySnapshot.forEach((doc) => {
+            const data = doc.data();
+            html += "<div>" + data.displayName + " : " + (data.totalPoints || 0) + "ポイント</div>";
+          });
+          document.getElementById("rankingList").innerHTML = html;
+        })
+        .catch((error) => { console.error("ランキング取得エラー: ", error); });
+    }
+
+    // 認証状態の監視
+    auth.onAuthStateChanged((user) => {
+      if (user) {
+        document.getElementById("loginStatus").innerText = "ログイン中: " + user.displayName;
+        document.getElementById("authForm").style.display = "none";
+        document.getElementById("logoutBtn").style.display = "inline-block";
+        loadUserData(user.uid);
+        loadRanking();
+      } else {
+        document.getElementById("loginStatus").innerText = "未ログイン";
+        document.getElementById("authForm").style.display = "block";
+        document.getElementById("logoutBtn").style.display = "none";
+      }
+    });
 
     // ハンバーガーメニューの制御
     function openMenu() { document.getElementById("hamburgerMenu").classList.add("active"); }
@@ -204,6 +232,11 @@
       <button onclick="ログイン()">ログイン</button>
     </div>
     <button id="logoutBtn" onclick="ログアウト()" style="display:none;">ログアウト</button>
+    <!-- ランキング表示 -->
+    <div id="rankingSection">
+      <h2>ランキング</h2>
+      <div id="rankingList">読み込み中…</div>
+    </div>
   </div>
 
   <div id="map"></div>
@@ -216,13 +249,13 @@
     </div>
   </div>
 
-  <footer>リリース更新日: 2025-03-07 15:00</footer>
+  <footer>リリース更新日: 2025-03-06</footer>
 
   <!-- LeafletとMarkerCluster -->
   <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
   <script src="https://unpkg.com/leaflet.markercluster/dist/leaflet.markercluster.js"></script>
   <script>
-    // カスタムアイコンの定義
+    // カスタムアイコンの定義（再定義）
     var defaultIcon = new L.Icon({
       iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-blue.png',
       shadowUrl: 'https://unpkg.com/leaflet@1.6/dist/images/marker-shadow.png',
@@ -248,7 +281,7 @@
       shadowSize: [41, 41]
     });
 
-    // 地図の初期設定（日本全体を表示）
+    // 地図初期設定
     var map = L.map('map').setView([36, 138], 5);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       attribution: '&copy; OpenStreetMap contributors'
@@ -352,7 +385,8 @@
           stampItem.id = "stamp-card-" + spot.id;
           stampItem.className = 'stamp-item' + (spot.stamped ? ' stamped' : '');
           if (spot.id === highlightedSpotId) { stampItem.classList.add("highlight"); }
-          stampItem.innerHTML = '<img src="' + spot.defaultImage + '" class="default-image" alt="' + spot.name + '"><h3>' + spot.name + '</h3>';
+          stampItem.innerHTML = '<img src="' + spot.defaultImage + 
+                                '" class="default-image" alt="' + spot.name + '"><h3>' + spot.name + '</h3>';
           var actionContainer = document.createElement('div');
           if (!userLocation || !isWithinRange(spot.lat, spot.lng)) {
             var btnOut = document.createElement('button');
@@ -452,7 +486,24 @@
           totalPoints: totalPoints,
           stampStatuses: stampStatuses
         }, { merge: true });
+        loadRanking();
       }
+    }
+
+    function loadRanking() {
+      db.collection("users")
+        .orderBy("totalPoints", "desc")
+        .limit(10)
+        .get()
+        .then((querySnapshot) => {
+          let html = "";
+          querySnapshot.forEach((doc) => {
+            const data = doc.data();
+            html += "<div>" + data.displayName + " : " + (data.totalPoints || 0) + "ポイント</div>";
+          });
+          document.getElementById("rankingList").innerHTML = html;
+        })
+        .catch((error) => { console.error("ランキング取得エラー: ", error); });
     }
 
     updateStampCard();
