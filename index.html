@@ -16,6 +16,10 @@
     #menuToggle {
       position: absolute; left: 20px; top: 20px; font-size: 24px; background: none; border: none; color: #fff; cursor: pointer;
     }
+    /* 現在地表示ボタン */
+    #locateBtn {
+      position: absolute; right: 20px; top: 20px; font-size: 16px; background: #fff; border: none; color: #4CAF50; padding: 5px 10px; border-radius: 5px; cursor: pointer;
+    }
     /* ハンバーガーメニュー本体 */
     #hamburgerMenu {
       position: fixed; top: 0; left: -260px; width: 250px; height: 100%; background: #fff;
@@ -59,7 +63,6 @@
     }
     footer { background: #eee; padding: 10px; text-align: center; font-size: 14px; color: #666; }
     
-    /* モバイル向け調整 */
     @media (max-width: 600px) {
       body { font-size: 16px; }
       header h1 { font-size: 24px; }
@@ -97,7 +100,7 @@
           const user = userCredential.user;
           user.updateProfile({ displayName: name }).then(() => {
             alert("新規登録成功: " + user.email);
-            // Firestoreにユーザーデータ作成
+            // ユーザードキュメント作成
             db.collection("users").doc(user.uid).set({
               displayName: name,
               totalPoints: 0,
@@ -164,7 +167,7 @@
       }
     }
 
-    // ランキング読み込み（上位10名を表示）
+    // ランキング読み込み（上位10名）
     function loadRanking() {
       db.collection("users")
         .orderBy("totalPoints", "desc")
@@ -199,11 +202,47 @@
     // ハンバーガーメニュー制御
     function openMenu() { document.getElementById("hamburgerMenu").classList.add("active"); }
     function closeMenu() { document.getElementById("hamburgerMenu").classList.remove("active"); }
+
+    // 現在地を追跡（watchPosition を使用）
+    var userLocation = null;
+    var currentLocationMarker = null;
+    var userCircle = null;
+    if (navigator.geolocation) {
+      navigator.geolocation.watchPosition(function(position) {
+        var lat = position.coords.latitude;
+        var lng = position.coords.longitude;
+        userLocation = L.latLng(lat, lng);
+        if (currentLocationMarker) {
+          currentLocationMarker.setLatLng(userLocation);
+        } else {
+          currentLocationMarker = L.marker(userLocation, { icon: userIcon }).addTo(map);
+          currentLocationMarker.bindPopup("あなたの現在地");
+        }
+        if (userCircle) {
+          userCircle.setLatLng(userLocation);
+        } else {
+          userCircle = L.circle(userLocation, { radius: 100000, color: '#ff0000', fillOpacity: 0.1 }).addTo(map);
+        }
+        updateStampCard();
+      }, function(error) {
+        console.error("Geolocation error: " + error.message);
+      }, { enableHighAccuracy: true });
+    } else {
+      console.error("Geolocation is not supported by this browser.");
+    }
+
+    // 現在地表示ボタン（地図の中心を現在地に移動）
+    function locateUser() {
+      if (userLocation) {
+        map.setView(userLocation, 18);
+      }
+    }
   </script>
 </head>
 <body>
   <header>
     <button id="menuToggle" onclick="openMenu()">☰</button>
+    <button id="locateBtn" onclick="locateUser()">現在地表示</button>
     <h1>スタンプラリー</h1>
     <p>全国の城・城址を巡ってスタンプを集めよう！</p>
     <div id="loginStatus" style="margin-top:10px;">未ログイン</div>
@@ -278,24 +317,6 @@
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       attribution: '&copy; OpenStreetMap contributors'
     }).addTo(map);
-
-    var userLocation = null;
-    var highlightedSpotId = null;
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(function(position) {
-        var lat = position.coords.latitude;
-        var lng = position.coords.longitude;
-        userLocation = L.latLng(lat, lng);
-        var currentLocationMarker = L.marker([lat, lng], { icon: userIcon }).addTo(map);
-        currentLocationMarker.bindPopup("あなたの現在地").openPopup();
-        L.circle(userLocation, { radius: 100000, color: '#ff0000', fillOpacity: 0.1 }).addTo(map);
-        updateStampCard();
-      }, function(error) {
-        console.error("Geolocation error: " + error.message);
-      });
-    } else {
-      console.error("Geolocation is not supported by this browser.");
-    }
 
     var markers = L.markerClusterGroup();
     var dummyImage = "https://gigaplus.makeshop.jp/hw2019/images/pages/page2/takane_img06.jpg";
@@ -377,8 +398,7 @@
           stampItem.id = "stamp-card-" + spot.id;
           stampItem.className = 'stamp-item' + (spot.stamped ? ' stamped' : '');
           if (spot.id === highlightedSpotId) { stampItem.classList.add("highlight"); }
-          stampItem.innerHTML = '<img src="' + spot.defaultImage + 
-                                '" class="default-image" alt="' + spot.name + '"><h3>' + spot.name + '</h3>';
+          stampItem.innerHTML = '<img src="' + spot.defaultImage + '" class="default-image" alt="' + spot.name + '"><h3>' + spot.name + '</h3>';
           var actionContainer = document.createElement('div');
           if (!userLocation || !isWithinRange(spot.lat, spot.lng)) {
             var btnOut = document.createElement('button');
