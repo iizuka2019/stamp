@@ -10,38 +10,20 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.Default.css" />
   <style>
     * { box-sizing: border-box; }
-    body { margin: 0; font-family: Arial, sans-serif; background: #f5f5f5; }
+    body { margin: 0; font-family: Arial, sans-serif; background: #f5f5f5; font-size: 14px; }
     header { background: #4CAF50; color: #fff; padding: 20px; text-align: center; position: relative; }
     /* ハンバーガーメニュー用ボタン */
     #menuToggle {
-      position: absolute;
-      left: 20px;
-      top: 20px;
-      font-size: 24px;
-      background: none;
-      border: none;
-      color: #fff;
-      cursor: pointer;
+      position: absolute; left: 20px; top: 20px; font-size: 24px; background: none; border: none; color: #fff; cursor: pointer;
     }
     /* ハンバーガーメニュー本体 */
     #hamburgerMenu {
-      position: fixed;
-      top: 0;
-      left: -260px;
-      width: 250px;
-      height: 100%;
-      background: #fff;
-      box-shadow: 2px 0 5px rgba(0,0,0,0.3);
-      z-index: 1000;
-      transition: left 0.3s ease;
-      padding: 20px;
-      overflow-y: auto;
+      position: fixed; top: 0; left: -260px; width: 250px; height: 100%; background: #fff;
+      box-shadow: 2px 0 5px rgba(0,0,0,0.3); z-index: 1000; transition: left 0.3s ease; padding: 20px; overflow-y: auto;
     }
     #hamburgerMenu.active { left: 0; }
     #hamburgerMenu h2 { margin-top: 0; font-size: 20px; border-bottom: 1px solid #ccc; padding-bottom: 10px; }
-    #menuClose {
-      background: none; border: none; font-size: 24px; position: absolute; right: 10px; top: 10px; cursor: pointer;
-    }
+    #menuClose { background: none; border: none; font-size: 24px; position: absolute; right: 10px; top: 10px; cursor: pointer; }
     /* 認証フォーム */
     .auth-form { margin-top: 40px; }
     .auth-form input { width: 100%; padding: 8px; margin: 5px 0; }
@@ -49,24 +31,24 @@
     /* ランキング表示 */
     #rankingSection { margin-top: 30px; }
     #rankingSection h2 { font-size: 18px; border-bottom: 1px solid #ccc; padding-bottom: 5px; }
-    #rankingList div { padding: 5px 0; border-bottom: 1px dashed #ddd; font-size: 14px; }
+    #rankingList div { padding: 5px 0; border-bottom: 1px dashed #ddd; font-size: 16px; }
     
     #map { width: 100%; height: 50vh; }
     .container { padding: 20px; }
     #pointsDisplay { font-size: 18px; margin-bottom: 10px; text-align: center; }
     .prefecture-group { margin-bottom: 20px; }
-    .prefecture-title { background: #eee; padding: 5px 10px; border-radius: 3px; margin-bottom: 10px; }
+    .prefecture-title { background: #eee; padding: 5px 10px; border-radius: 3px; margin-bottom: 10px; font-size: 16px; }
     .stamp-card { display: flex; flex-wrap: wrap; gap: 10px; }
     .stamp-item {
       background: #fff; border: 1px solid #ccc; border-radius: 5px; padding: 10px;
       flex: 1 1 calc(33.33% - 20px); text-align: center; min-width: 150px;
-      transition: border 0.3s;
+      transition: border 0.3s; font-size: 16px;
     }
     .stamp-item.highlight { border: 3px solid #ff0000; }
     .stamp-item.stamped { background: #d4edda; border-color: #c3e6cb; }
     .stamp-button {
       margin-top: 10px; background-color: #4CAF50; border: none; color: white;
-      padding: 10px; font-size: 14px; cursor: pointer; border-radius: 5px;
+      padding: 10px; font-size: 16px; cursor: pointer; border-radius: 5px;
     }
     .stamp-button:disabled { background-color: #aaa; cursor: not-allowed; }
     .default-image {
@@ -75,14 +57,24 @@
     .preview-image {
       width: 100%; max-height: 100px; margin-top: 5px; border: 1px solid #ccc;
     }
-    footer { background: #eee; padding: 10px; text-align: center; font-size: 12px; color: #666; }
+    footer { background: #eee; padding: 10px; text-align: center; font-size: 14px; color: #666; }
+    
+    /* モバイル向け調整 */
+    @media (max-width: 600px) {
+      body { font-size: 16px; }
+      header h1 { font-size: 24px; }
+      header p { font-size: 18px; }
+      .auth-form input, .auth-form button { font-size: 16px; }
+      #rankingList div { font-size: 18px; }
+      .prefecture-title, .stamp-item, .stamp-button { font-size: 18px; }
+    }
   </style>
   <!-- Firebase SDK（compat版） -->
   <script src="https://www.gstatic.com/firebasejs/9.21.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.21.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.21.0/firebase-firestore-compat.js"></script>
   <script>
-    // Firebaseの設定情報（プロジェクトの情報に置き換えてください）
+    // Firebase設定
     const firebaseConfig = {
       apiKey: "AIzaSyDKoSPR75Je99OtMywNCx7Wdufo2sqRo0Q",
       authDomain: "stamprally-202503.firebaseapp.com",
@@ -95,7 +87,7 @@
     const auth = firebase.auth();
     const db = firebase.firestore();
 
-    // 新規登録時に氏名も登録（displayName）とユーザーデータ作成
+    // 新規登録（氏名も含む）
     function 新規登録() {
       const name = document.getElementById("signupName").value;
       const email = document.getElementById("signupEmail").value;
@@ -105,7 +97,7 @@
           const user = userCredential.user;
           user.updateProfile({ displayName: name }).then(() => {
             alert("新規登録成功: " + user.email);
-            // ユーザードキュメント作成（displayNameも保存）
+            // Firestoreにユーザーデータ作成
             db.collection("users").doc(user.uid).set({
               displayName: name,
               totalPoints: 0,
@@ -139,7 +131,7 @@
       }).catch((error) => { alert("エラー: " + error.message); });
     }
 
-    // Firestoreからユーザーデータを読み込み
+    // Firestoreからユーザーデータ読み込み
     function loadUserData(uid) {
       db.collection("users").doc(uid).get().then((doc) => {
         if (doc.exists) {
@@ -158,7 +150,7 @@
       });
     }
 
-    // Firestoreにユーザーデータを更新
+    // Firestoreにユーザーデータ更新
     function updateUserData() {
       const user = auth.currentUser;
       if (user) {
@@ -172,7 +164,7 @@
       }
     }
 
-    // ランキング機能：Firestoreから上位10名のユーザーデータを取得して表示
+    // ランキング読み込み（上位10名を表示）
     function loadRanking() {
       db.collection("users")
         .orderBy("totalPoints", "desc")
@@ -189,7 +181,7 @@
         .catch((error) => { console.error("ランキング取得エラー: ", error); });
     }
 
-    // 認証状態の監視
+    // 認証状態監視
     auth.onAuthStateChanged((user) => {
       if (user) {
         document.getElementById("loginStatus").innerText = "ログイン中: " + user.displayName;
@@ -204,7 +196,7 @@
       }
     });
 
-    // ハンバーガーメニューの制御
+    // ハンバーガーメニュー制御
     function openMenu() { document.getElementById("hamburgerMenu").classList.add("active"); }
     function closeMenu() { document.getElementById("hamburgerMenu").classList.remove("active"); }
   </script>
@@ -217,7 +209,7 @@
     <div id="loginStatus" style="margin-top:10px;">未ログイン</div>
   </header>
 
-  <!-- ハンバーガーメニュー本体 -->
+  <!-- ハンバーガーメニュー -->
   <div id="hamburgerMenu">
     <button id="menuClose" onclick="closeMenu()">×</button>
     <h2>ユーザー認証</h2>
@@ -255,7 +247,7 @@
   <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
   <script src="https://unpkg.com/leaflet.markercluster/dist/leaflet.markercluster.js"></script>
   <script>
-    // カスタムアイコンの定義（再定義）
+    // カスタムアイコンの再定義
     var defaultIcon = new L.Icon({
       iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-blue.png',
       shadowUrl: 'https://unpkg.com/leaflet@1.6/dist/images/marker-shadow.png',
