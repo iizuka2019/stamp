@@ -126,8 +126,6 @@ let castleSpots = [
   { id: 90, name: "町田市史跡",             lat: 35.5500, lng: 139.4500, stamped: false, photo: null, defaultImage: "https://example.com/machida.jpg", prefecture: "東京都", description: "町田市内の歴史的な民家群や城跡が見られる地域です。（仮称）" }
 ];
 
-];
-
 // マーカーの追加
 castleSpots.forEach(spot => {
   let marker = L.marker([spot.lat, spot.lng], { icon: defaultIcon });
