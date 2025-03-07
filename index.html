@@ -36,30 +36,15 @@
       transition: left 0.3s ease;
       padding: 20px;
     }
-    #hamburgerMenu.active {
-      left: 0;
-    }
-    #hamburgerMenu h2 {
-      margin-top: 0;
-      font-size: 20px;
-      border-bottom: 1px solid #ccc;
-      padding-bottom: 10px;
-    }
-    /* 閉じるボタン */
+    #hamburgerMenu.active { left: 0; }
+    #hamburgerMenu h2 { margin-top: 0; font-size: 20px; border-bottom: 1px solid #ccc; padding-bottom: 10px; }
     #menuClose {
-      background: none;
-      border: none;
-      font-size: 24px;
-      position: absolute;
-      right: 10px;
-      top: 10px;
-      cursor: pointer;
+      background: none; border: none; font-size: 24px; position: absolute; right: 10px; top: 10px; cursor: pointer;
     }
     /* 認証フォーム */
     .auth-form { margin-top: 40px; }
     .auth-form input { width: 100%; padding: 8px; margin: 5px 0; }
     .auth-form button { width: 48%; padding: 8px; margin: 5px 1%; }
-    
     #map { width: 100%; height: 50vh; }
     .container { padding: 20px; }
     #pointsDisplay { font-size: 18px; margin-bottom: 10px; text-align: center; }
@@ -67,48 +52,31 @@
     .prefecture-title { background: #eee; padding: 5px 10px; border-radius: 3px; margin-bottom: 10px; }
     .stamp-card { display: flex; flex-wrap: wrap; gap: 10px; }
     .stamp-item {
-      background: #fff;
-      border: 1px solid #ccc;
-      border-radius: 5px;
-      padding: 10px;
-      flex: 1 1 calc(33.33% - 20px);
-      text-align: center;
-      min-width: 150px;
+      background: #fff; border: 1px solid #ccc; border-radius: 5px; padding: 10px;
+      flex: 1 1 calc(33.33% - 20px); text-align: center; min-width: 150px;
       transition: border 0.3s;
     }
     .stamp-item.highlight { border: 3px solid #ff0000; }
     .stamp-item.stamped { background: #d4edda; border-color: #c3e6cb; }
     .stamp-button {
-      margin-top: 10px;
-      background-color: #4CAF50;
-      border: none;
-      color: white;
-      padding: 10px;
-      font-size: 14px;
-      cursor: pointer;
-      border-radius: 5px;
+      margin-top: 10px; background-color: #4CAF50; border: none; color: white;
+      padding: 10px; font-size: 14px; cursor: pointer; border-radius: 5px;
     }
     .stamp-button:disabled { background-color: #aaa; cursor: not-allowed; }
     .default-image {
-      width: 100%;
-      height: auto;
-      max-height: 100px;
-      margin-bottom: 5px;
-      border: 1px solid #ccc;
+      width: 100%; height: auto; max-height: 100px; margin-bottom: 5px; border: 1px solid #ccc;
     }
     .preview-image {
-      width: 100%;
-      max-height: 100px;
-      margin-top: 5px;
-      border: 1px solid #ccc;
+      width: 100%; max-height: 100px; margin-top: 5px; border: 1px solid #ccc;
     }
     footer { background: #eee; padding: 10px; text-align: center; font-size: 12px; color: #666; }
   </style>
   <!-- Firebase SDK（compat版） -->
   <script src="https://www.gstatic.com/firebasejs/9.21.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.21.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.21.0/firebase-firestore-compat.js"></script>
   <script>
-    // Firebaseの設定情報（そのままご利用ください）
+    // Firebaseの設定（ご自身のプロジェクトの情報に置き換えてください）
     const firebaseConfig = {
       apiKey: "AIzaSyDKoSPR75Je99OtMywNCx7Wdufo2sqRo0Q",
       authDomain: "stamprally-202503.firebaseapp.com",
@@ -119,48 +87,56 @@
     };
     firebase.initializeApp(firebaseConfig);
     const auth = firebase.auth();
+    const db = firebase.firestore();
 
-    // メール/パスワードによる新規登録
+    // 新規登録時に氏名も登録（displayName）
     function 新規登録() {
+      const name = document.getElementById("signupName").value;
       const email = document.getElementById("signupEmail").value;
       const password = document.getElementById("signupPassword").value;
       auth.createUserWithEmailAndPassword(email, password)
         .then((userCredential) => {
-          alert("新規登録成功: " + userCredential.user.email);
+          const user = userCredential.user;
+          user.updateProfile({ displayName: name }).then(() => {
+            alert("新規登録成功: " + user.email);
+            // 初期ユーザーデータ作成
+            db.collection("users").doc(user.uid).set({
+              totalPoints: 0,
+              stampStatuses: {}
+            });
+          });
         })
-        .catch((error) => {
-          alert("エラー: " + error.message);
-        });
+        .catch((error) => { alert("エラー: " + error.message); });
     }
 
-    // メール/パスワードによるログイン
     function ログイン() {
       const email = document.getElementById("loginEmail").value;
       const password = document.getElementById("loginPassword").value;
       auth.signInWithEmailAndPassword(email, password)
         .then((userCredential) => {
           alert("ログイン成功: " + userCredential.user.email);
+          loadUserData(userCredential.user.uid);
         })
-        .catch((error) => {
-          alert("エラー: " + error.message);
-        });
+        .catch((error) => { alert("エラー: " + error.message); });
     }
 
     function ログアウト() {
       auth.signOut().then(() => {
         alert("ログアウトしました");
-      }).catch((error) => {
-        alert("エラー: " + error.message);
-      });
+        totalPoints = 0;
+        castleSpots.forEach((spot) => { spot.stamped = false; });
+        updatePointsDisplay();
+        updateStampCard();
+      }).catch((error) => { alert("エラー: " + error.message); });
     }
 
     // 認証状態の監視
     auth.onAuthStateChanged((user) => {
       if (user) {
-        document.getElementById("loginStatus").innerText = "ログイン中: " + user.email;
-        // 認証フォームは非表示
+        document.getElementById("loginStatus").innerText = "ログイン中: " + user.displayName;
         document.getElementById("authForm").style.display = "none";
         document.getElementById("logoutBtn").style.display = "inline-block";
+        loadUserData(user.uid);
       } else {
         document.getElementById("loginStatus").innerText = "未ログイン";
         document.getElementById("authForm").style.display = "block";
@@ -168,29 +144,57 @@
       }
     });
 
-    // ハンバーガーメニューの開閉制御
-    function openMenu() {
-      document.getElementById("hamburgerMenu").classList.add("active");
+    // Firestoreからユーザーデータを読み込み
+    function loadUserData(uid) {
+      db.collection("users").doc(uid).get().then((doc) => {
+        if (doc.exists) {
+          const data = doc.data();
+          totalPoints = data.totalPoints || 0;
+          if (data.stampStatuses) {
+            castleSpots.forEach((spot) => {
+              if (data.stampStatuses[spot.id] !== undefined) {
+                spot.stamped = data.stampStatuses[spot.id];
+              }
+            });
+          }
+          updatePointsDisplay();
+          updateStampCard();
+        }
+      });
     }
-    function closeMenu() {
-      document.getElementById("hamburgerMenu").classList.remove("active");
+
+    // Firestoreにユーザーデータを更新
+    function updateUserData() {
+      const user = auth.currentUser;
+      if (user) {
+        let stampStatuses = {};
+        castleSpots.forEach((spot) => { stampStatuses[spot.id] = spot.stamped; });
+        db.collection("users").doc(user.uid).set({
+          totalPoints: totalPoints,
+          stampStatuses: stampStatuses
+        }, { merge: true });
+      }
     }
+
+    // ハンバーガーメニューの制御
+    function openMenu() { document.getElementById("hamburgerMenu").classList.add("active"); }
+    function closeMenu() { document.getElementById("hamburgerMenu").classList.remove("active"); }
   </script>
 </head>
 <body>
   <header>
-    <!-- ハンバーガーメニュー用ボタン -->
     <button id="menuToggle" onclick="openMenu()">☰</button>
     <h1>スタンプラリー</h1>
     <p>全国の城・城址を巡ってスタンプを集めよう！</p>
     <div id="loginStatus" style="margin-top:10px;">未ログイン</div>
   </header>
-  
+
   <!-- ハンバーガーメニュー本体 -->
   <div id="hamburgerMenu">
     <button id="menuClose" onclick="closeMenu()">×</button>
     <h2>ユーザー認証</h2>
     <div id="authForm" class="auth-form">
+      <input type="text" id="signupName" placeholder="氏名（新規登録）">
       <input type="email" id="signupEmail" placeholder="メールアドレス（新規登録）">
       <input type="password" id="signupPassword" placeholder="パスワード（新規登録）">
       <button onclick="新規登録()">新規登録</button>
@@ -201,9 +205,9 @@
     </div>
     <button id="logoutBtn" onclick="ログアウト()" style="display:none;">ログアウト</button>
   </div>
-  
+
   <div id="map"></div>
-  
+
   <div class="container">
     <div id="pointsDisplay">総ポイント: 0</div>
     <h2>スタンプカード</h2>
@@ -211,9 +215,9 @@
       <!-- 都道府県ごとにグループ分けして表示 -->
     </div>
   </div>
-  
-  <footer>リリース更新日: 2025-03-06</footer>
-  
+
+  <footer>リリース更新日: 2025-03-07 15:00</footer>
+
   <!-- LeafletとMarkerCluster -->
   <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
   <script src="https://unpkg.com/leaflet.markercluster/dist/leaflet.markercluster.js"></script>
@@ -252,8 +256,6 @@
 
     var userLocation = null;
     var highlightedSpotId = null;
-    
-    // ユーザーの現在地を取得して赤ピンと100km円を表示
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(function(position) {
         var lat = position.coords.latitude;
@@ -271,8 +273,6 @@
     }
 
     var markers = L.markerClusterGroup();
-
-    // サンプルの城・城址データ（都道府県情報付き、表木城址は10ポイント）
     var dummyImage = "https://gigaplus.makeshop.jp/hw2019/images/pages/page2/takane_img06.jpg";
     var castleSpots = [
       { id: 1,  name: "姫路城",     lat: 34.8394, lng: 134.6939, stamped: false, photo: null, defaultImage: dummyImage, prefecture: "兵庫県" },
@@ -322,17 +322,13 @@
     map.addLayer(markers);
 
     var totalPoints = 0;
-    
     function isWithinRange(spotLat, spotLng) {
       if (!userLocation) return false;
       return userLocation.distanceTo(L.latLng(spotLat, spotLng)) <= 100000;
     }
-
     function updatePointsDisplay() {
       document.getElementById('pointsDisplay').innerText = "総ポイント: " + totalPoints;
     }
-
-    // 都道府県ごとにグループ分けしてスタンプカードを表示
     function updateStampCard() {
       var stampCard = document.getElementById('stampCard');
       stampCard.innerHTML = "";
@@ -349,19 +345,14 @@
         title.className = "prefecture-title";
         title.innerText = pref;
         groupDiv.appendChild(title);
-        
         var cardContainer = document.createElement('div');
         cardContainer.className = "stamp-card";
-        
         groups[pref].forEach(function(spot) {
           var stampItem = document.createElement('div');
           stampItem.id = "stamp-card-" + spot.id;
           stampItem.className = 'stamp-item' + (spot.stamped ? ' stamped' : '');
-          if (spot.id === highlightedSpotId) {
-            stampItem.classList.add("highlight");
-          }
-          stampItem.innerHTML = '<img src="' + spot.defaultImage + 
-                                '" class="default-image" alt="' + spot.name + '"><h3>' + spot.name + '</h3>';
+          if (spot.id === highlightedSpotId) { stampItem.classList.add("highlight"); }
+          stampItem.innerHTML = '<img src="' + spot.defaultImage + '" class="default-image" alt="' + spot.name + '"><h3>' + spot.name + '</h3>';
           var actionContainer = document.createElement('div');
           if (!userLocation || !isWithinRange(spot.lat, spot.lng)) {
             var btnOut = document.createElement('button');
@@ -403,6 +394,7 @@
                     alert(spot.name + "のスタンプを獲得しました！ " + pts + "ポイント獲得");
                     spot.marker.setIcon(stampedIcon);
                     updateStampCard();
+                    updateUserData();
                   }
                 };
                 actionContainer.appendChild(stampBtn);
@@ -448,6 +440,18 @@
         });
         groupDiv.appendChild(cardContainer);
         stampCard.appendChild(groupDiv);
+      }
+    }
+
+    function updateUserData() {
+      const user = auth.currentUser;
+      if (user) {
+        let stampStatuses = {};
+        castleSpots.forEach((spot) => { stampStatuses[spot.id] = spot.stamped; });
+        db.collection("users").doc(user.uid).set({
+          totalPoints: totalPoints,
+          stampStatuses: stampStatuses
+        }, { merge: true });
       }
     }
 
