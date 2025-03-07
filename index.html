@@ -175,7 +175,7 @@
       }
     }
 
-    // ランキング読み込み（上位10名）
+    // ランキング読み込み（上位10名を表示）
     function loadRanking() {
       db.collection("users")
         .orderBy("totalPoints", "desc")
@@ -211,24 +211,28 @@
     function openMenu() { document.getElementById("hamburgerMenu").classList.add("active"); }
     function closeMenu() { document.getElementById("hamburgerMenu").classList.remove("active"); }
 
-    // 初期現在地取得 → 地図をユーザー位置に最大ズームで表示、その後watchPositionで更新
+    // 地図と現在地の初期取得（50km圏内サークル：固定の水色の半透明サークル）
+    var currentLocationMarker = null;
+    var userCircle = null;
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(function(position) {
         var lat = position.coords.latitude;
         var lng = position.coords.longitude;
         userLocation = L.latLng(lat, lng);
-        // 地図初期表示をユーザー位置にズーム（最大ズーム18）
+        // 初期表示はユーザー位置にズーム（最大ズーム18）
         map.setView(userLocation, 18);
-        // 赤い現在地ピンと50km(50000m)のサークルを表示（パルスアニメーション付き）
+        // 現在地ピンの表示
         currentLocationMarker = L.marker(userLocation, { icon: userIcon }).addTo(map);
         currentLocationMarker.bindPopup("あなたの現在地");
-        pulseCircle = L.circle(userLocation, {
+        // 固定の50kmのサークル（薄い水色）
+        userCircle = L.circle(userLocation, {
           radius: 50000,
           color: '#a2d9ff',
           fillColor: '#a2d9ff',
           fillOpacity: 0.1,
           stroke: false
         }).addTo(map);
+        // 初回更新：スタンプカード更新
         updateStampCard();
       }, function(error) {
         console.error("getCurrentPosition エラー: " + error.message);
@@ -237,11 +241,7 @@
       console.error("Geolocation is not supported by this browser.");
     }
 
-    // 現在地の連続更新とパルスアニメーション
-    var currentLocationMarker = null;
-    var pulseCircle = null;
-    var baseRadius = 50000; // 50km
-    var growing = true;
+    // 現在地の連続更新（50km圏内のサークル位置を更新）
     if (navigator.geolocation) {
       navigator.geolocation.watchPosition(function(position) {
         var lat = position.coords.latitude;
@@ -249,21 +249,9 @@
         userLocation = L.latLng(lat, lng);
         if (currentLocationMarker) {
           currentLocationMarker.setLatLng(userLocation);
-        } else {
-          currentLocationMarker = L.marker(userLocation, { icon: userIcon }).addTo(map);
-          currentLocationMarker.bindPopup("あなたの現在地");
         }
-        if (pulseCircle) {
-          pulseCircle.setLatLng(userLocation);
-          var currentRadius = pulseCircle.getRadius();
-          if (growing) {
-            currentRadius += 500;
-            if (currentRadius >= baseRadius * 1.1) { growing = false; }
-          } else {
-            currentRadius -= 500;
-            if (currentRadius <= baseRadius * 0.9) { growing = true; }
-          }
-          pulseCircle.setRadius(currentRadius);
+        if (userCircle) {
+          userCircle.setLatLng(userLocation);
         }
         updateStampCard();
       }, function(error) {
@@ -271,12 +259,12 @@
       }, { enableHighAccuracy: true });
     }
 
-    // 現在地表示ボタン（地図を現在地にズーム）
+    // 現在地表示ボタン
     function locateUser() {
       if (userLocation) { map.setView(userLocation, 18); }
     }
 
-    // isWithinRange：50km圏内チェック
+    // 50km圏内チェック
     function isWithinRange(spotLat, spotLng) {
       if (!userLocation) return false;
       return userLocation.distanceTo(L.latLng(spotLat, spotLng)) <= 50000;
@@ -286,12 +274,12 @@
       document.getElementById('pointsDisplay').innerText = "総ポイント: " + totalPoints;
     }
 
-    // 50km圏内の城のみ表示する（初期表示としても更新）
-    // 各城にダミーの説明文は既に設定済み。スタンプ取得日時も表示。
+    // スタンプカード更新：50km圏内の城のみ表示、説明文と取得日時を追加
     function updateStampCard() {
       var stampCard = document.getElementById('stampCard');
       stampCard.innerHTML = "";
       var groups = {};
+      // 50km圏内の城のみを対象
       castleSpots.forEach(function(spot) {
         if (isWithinRange(spot.lat, spot.lng)) {
           var pref = spot.prefecture || "その他";
@@ -444,8 +432,7 @@
         .catch((error) => { console.error("ランキング取得エラー: ", error); });
     }
 
-    // 初回表示では、すでにgetCurrentPosition()でユーザー位置が取得され、map.setView()で最大ズームで表示しています
-
+    // 初回表示：updateStampCardとupdatePointsDisplay
     updateStampCard();
     updatePointsDisplay();
 
@@ -502,37 +489,7 @@
   <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
   <script src="https://unpkg.com/leaflet.markercluster/dist/leaflet.markercluster.js"></script>
   <script>
-    // カスタムアイコンの再定義（必要に応じ再定義）
-    var defaultIcon = new L.Icon({
-      iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-blue.png',
-      shadowUrl: 'https://unpkg.com/leaflet@1.6/dist/images/marker-shadow.png',
-      iconSize: [25, 41],
-      iconAnchor: [12, 41],
-      popupAnchor: [1, -34],
-      shadowSize: [41, 41]
-    });
-    var stampedIcon = new L.Icon({
-      iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-grey.png',
-      shadowUrl: 'https://unpkg.com/leaflet@1.6/dist/images/marker-shadow.png',
-      iconSize: [25, 41],
-      iconAnchor: [12, 41],
-      popupAnchor: [1, -34],
-      shadowSize: [41, 41]
-    });
-    var userIcon = new L.Icon({
-      iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-red.png',
-      shadowUrl: 'https://unpkg.com/leaflet@1.6/dist/images/marker-shadow.png',
-      iconSize: [25, 41],
-      iconAnchor: [12, 41],
-      popupAnchor: [1, -34],
-      shadowSize: [41, 41]
-    });
-
-    // 地図初期設定
-    var map = L.map('map').setView([36, 138], 5);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '&copy; OpenStreetMap contributors'
-    }).addTo(map);
+    // ここ以降、重複定義は不要（上記スクリプトで完結）
   </script>
 </body>
 </html>
