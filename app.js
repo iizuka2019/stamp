@@ -53,18 +53,33 @@ const userIcon = new L.Icon({
 
 // 城のデータ（各城に説明文・ダミーテキストを追加）
 let castleSpots = [
-  { id: 1,  name: "姫路城",   lat: 34.8394, lng: 134.6939, stamped: false, photo: null, defaultImage: "https://gigaplus.makeshop.jp/hw2019/images/pages/page2/takane_img06.jpg", prefecture: "兵庫県", description: "この城は歴史的に重要な場所です。多くの伝説が語られています。" },
-  { id: 2,  name: "大阪城",   lat: 34.6873, lng: 135.5259, stamped: false, photo: null, defaultImage: "https://gigaplus.makeshop.jp/hw2019/images/pages/page2/takane_img06.jpg", prefecture: "大阪府", description: "この城は壮大な天守閣で知られ、訪れる人々を魅了します。" },
-  { id: 3,  name: "名古屋城", lat: 35.1850, lng: 136.9066, stamped: false, photo: null, defaultImage: "https://gigaplus.makeshop.jp/hw2019/images/pages/page2/takane_img06.jpg", prefecture: "愛知県", description: "名古屋城は歴史と現代文化が交差する、重要な観光名所です。" },
-  { id: 4,  name: "熊本城",   lat: 32.8031, lng: 130.7079, stamped: false, photo: null, defaultImage: "https://gigaplus.makeshop.jp/hw2019/images/pages/page2/takane_img06.jpg", prefecture: "熊本県", description: "熊本城はその美しい城郭と、災害からの復興で知られています。" },
-  { id: 5,  name: "松本城",   lat: 36.2381, lng: 137.9681, stamped: false, photo: null, defaultImage: "https://gigaplus.makeshop.jp/hw2019/images/pages/page2/takane_img06.jpg", prefecture: "長野県", description: "松本城は現存する国宝級の城郭で、その美しさが評価されています。" },
-  // ... 他の城データ（同様に記述）...
-  { id: 31, name: "表木城址", lat: 35.7861114, lng: 137.874874, stamped: false, photo: null, defaultImage: "https://gigaplus.makeshop.jp/hw2019/images/pages/page2/takane_img06.jpg", points: 10, prefecture: "岐阜県", description: "表木城址は特別な価値を持つ城跡として、10ポイントが設定されています。" }
+  { id: 1,  name: "姫路城",     lat: 34.8394, lng: 134.6939, stamped: false, photo: null, defaultImage: "https://gigaplus.makeshop.jp/hw2019/images/pages/page2/takane_img06.jpg", prefecture: "兵庫県", description: "この城は歴史的に重要な場所です。多くの伝説が語られています。" },
+  { id: 2,  name: "大阪城",     lat: 34.6873, lng: 135.5259, stamped: false, photo: null, defaultImage: "https://gigaplus.makeshop.jp/hw2019/images/pages/page2/takane_img06.jpg", prefecture: "大阪府", description: "この城は壮大な天守閣で知られ、訪れる人々を魅了します。" },
+  { id: 3,  name: "名古屋城",   lat: 35.1850, lng: 136.9066, stamped: false, photo: null, defaultImage: "https://gigaplus.makeshop.jp/hw2019/images/pages/page2/takane_img06.jpg", prefecture: "愛知県", description: "名古屋城は歴史と現代文化が交差する、重要な観光名所です。" },
+  { id: 4,  name: "熊本城",     lat: 32.8031, lng: 130.7079, stamped: false, photo: null, defaultImage: "https://gigaplus.makeshop.jp/hw2019/images/pages/page2/takane_img06.jpg", prefecture: "熊本県", description: "熊本城はその美しい城郭と、災害からの復興で知られています。" },
+  { id: 5,  name: "松本城",     lat: 36.2381, lng: 137.9681, stamped: false, photo: null, defaultImage: "https://gigaplus.makeshop.jp/hw2019/images/pages/page2/takane_img06.jpg", prefecture: "長野県", description: "松本城は現存する国宝級の城郭で、その美しさが評価されています。" },
+  { id: 6,  name: "弘前城",     lat: 40.6045, lng: 140.4637, stamped: false, photo: null, defaultImage: "https://gigaplus.makeshop.jp/hw2019/images/pages/page2/takane_img06.jpg", prefecture: "青森県", description: "弘前城は桜の名所としても有名で、季節ごとの景観が楽しめます。" },
+  { id: 7,  name: "二条城",     lat: 35.0214, lng: 135.7524, stamped: false, photo: null, defaultImage: "https://gigaplus.makeshop.jp/hw2019/images/pages/page2/takane_img06.jpg", prefecture: "京都府", description: "二条城は古都京都の歴史を感じさせる、美しい建築物です。" },
+  { id: 8,  name: "松山城",     lat: 33.8394, lng: 132.7663, stamped: false, photo: null, defaultImage: "https://gigaplus.makeshop.jp/hw2019/images/pages/page2/takane_img06.jpg", prefecture: "愛媛県", description: "松山城は高台に位置し、四国を一望できる絶景スポットです。" },
+  { id: 9,  name: "丸亀城",     lat: 34.2772, lng: 133.7593, stamped: false, photo: null, defaultImage: "https://gigaplus.makeshop.jp/hw2019/images/pages/page2/takane_img06.jpg", prefecture: "香川県", description: "丸亀城は独特の風格を持つ、歴史ある城跡です。" },
+  { id: 10, name: "高知城",     lat: 33.5597, lng: 133.5311, stamped: false, photo: null, defaultImage: "https://gigaplus.makeshop.jp/hw2019/images/pages/page2/takane_img06.jpg", prefecture: "高知県", description: "高知城は高知の中心に位置し、歴史と自然が融合した名城です。" },
+  { id: 11, name: "岡山城",     lat: 34.6551, lng: 133.9183, stamped: false, photo: null, defaultImage: "https://gigaplus.makeshop.jp/hw2019/images/pages/page2/takane_img06.jpg", prefecture: "岡山県", description: "岡山城は美しい石垣と共に、多くの歴史的エピソードを持っています。" },
+  { id: 12, name: "金沢城",     lat: 36.5613, lng: 136.6562, stamped: false, photo: null, defaultImage: "https://gigaplus.makeshop.jp/hw2019/images/pages/page2/takane_img06.jpg", prefecture: "石川県", description: "金沢城は兼六園とともに、金沢の歴史を彩る重要な遺産です。" },
+  { id: 13, name: "福山城",     lat: 34.4833, lng: 133.3640, stamped: false, photo: null, defaultImage: "https://gigaplus.makeshop.jp/hw2019/images/pages/page2/takane_img06.jpg", prefecture: "広島県", description: "福山城はその歴史的価値と美しい景観で、観光客に人気です。" },
+  { id: 14, name: "江戸城跡",   lat: 35.6852, lng: 139.7528, stamped: false, photo: null, defaultImage: "https://gigaplus.makeshop.jp/hw2019/images/pages/page2/takane_img06.jpg", prefecture: "東京都", description: "江戸城跡は江戸時代の栄華を偲ばせる、貴重な遺構です。" },
+  { id: 15, name: "敦賀城",     lat: 35.6000, lng: 135.2000, stamped: false, photo: null, defaultImage: "https://gigaplus.makeshop.jp/hw2019/images/pages/page2/takane_img06.jpg", prefecture: "福井県", description: "敦賀城は海に近く、歴史と自然が感じられる美しい城跡です。" },
+  { id: 16, name: "伊賀上野城", lat: 34.7333, lng: 136.1833, stamped: false, photo: null, defaultImage: "https://gigaplus.makeshop.jp/hw2019/images/pages/page2/takane_img06.jpg", prefecture: "三重県", description: "伊賀上野城は忍者の里としても有名で、歴史と伝説が息づいています。" },
+  { id: 17, name: "彦根城",     lat: 35.2753, lng: 136.1264, stamped: false, photo: null, defaultImage: "https://gigaplus.makeshop.jp/hw2019/images/pages/page2/takane_img06.jpg", prefecture: "滋賀県", description: "彦根城は国宝に指定されている、優美な城郭です。" },
+  { id: 18, name: "松江城",     lat: 35.4667, lng: 133.0500, stamped: false, photo: null, defaultImage: "https://gigaplus.makeshop.jp/hw2019/images/pages/page2/takane_img06.jpg", prefecture: "島根県", description: "松江城は日本で唯一現存する平山城の一つとして知られています。" },
+  { id: 19, name: "宇和島城",   lat: 33.9833, lng: 132.7667, stamped: false, photo: null, defaultImage: "https://gigaplus.makeshop.jp/hw2019/images/pages/page2/takane_img06.jpg", prefecture: "愛媛県", description: "宇和島城はその独特な立地と美しい景観が魅力です。" },
+  { id: 20, name: "犬山城",     lat: 35.3250, lng: 136.9500, stamped: false, photo: null, defaultImage: "https://gigaplus.makeshop.jp/hw2019/images/pages/page2/takane_img06.jpg", prefecture: "愛知県", description: "犬山城は国宝に指定された、日本最古の木造天守です。" },
+  // ...（他の城データも同様に追加してください）...
+  { id: 31, name: "表木城址",   lat: 35.7861114, lng: 137.874874, stamped: false, photo: null, defaultImage: "https://gigaplus.makeshop.jp/hw2019/images/pages/page2/takane_img06.jpg", points: 10, prefecture: "岐阜県", description: "表木城址は特別な価値を持つ城跡として、10ポイントが設定されています。" }
 ];
 
 // マーカーの追加
 castleSpots.forEach(spot => {
-  let marker = L.marker([spot.lat, spot.lng], {icon: defaultIcon});
+  let marker = L.marker([spot.lat, spot.lng], { icon: defaultIcon });
   marker.bindPopup(spot.name);
   spot.marker = marker;
   marker.on('click', function(){
@@ -76,7 +91,8 @@ castleSpots.forEach(spot => {
 });
 map.addLayer(markers);
 
-// 認証系の関数
+// 認証・ユーザー関連関数
+
 function 新規登録() {
   const name = document.getElementById("signupName").value;
   const email = document.getElementById("signupEmail").value;
@@ -113,7 +129,10 @@ function ログアウト() {
   auth.signOut().then(() => {
     alert("ログアウトしました");
     totalPoints = 0;
-    castleSpots.forEach(spot => { spot.stamped = false; spot.stampTime = null; });
+    castleSpots.forEach(spot => { 
+      spot.stamped = false; 
+      spot.stampTime = null; 
+    });
     updatePointsDisplay();
     updateStampCard();
   }).catch((error) => { alert("エラー: " + error.message); });
@@ -240,7 +259,9 @@ if (navigator.geolocation) {
 
 // 現在地表示ボタン
 function locateUser() {
-  if (userLocation) { map.setView(userLocation, 18); }
+  if (userLocation) {
+    map.setView(userLocation, 18);
+  }
 }
 
 // 50km圏内チェック
@@ -253,7 +274,7 @@ function updatePointsDisplay() {
   document.getElementById('pointsDisplay').innerText = "総ポイント: " + totalPoints;
 }
 
-// スタンプカード更新：50km圏内の城のみ表示（グループ分け）
+// スタンプカード更新：50km圏内の城のみ表示（グループ分け）、説明文と取得日時追加
 function updateStampCard() {
   let stampCard = document.getElementById('stampCard');
   stampCard.innerHTML = "";
@@ -345,7 +366,7 @@ function updateStampCard() {
           shareBtn.className = 'stamp-button';
           shareBtn.innerText = "SNSでシェア";
           shareBtn.onclick = function() {
-            if (navigator.share && spot.photoFile && navigator.canShare && navigator.canShare({files: [spot.photoFile]})) {
+            if (navigator.share && spot.photoFile && navigator.canShare && navigator.canShare({ files: [spot.photoFile] })) {
               navigator.share({
                 title: spot.name + "のスタンプ",
                 text: spot.name + "のスタンプを獲得しました！",
@@ -418,4 +439,10 @@ updatePointsDisplay();
 // 現在地表示ボタン
 function locateUser() {
   if (userLocation) { map.setView(userLocation, 18); }
+}
+
+// 50km圏内チェック
+function isWithinRange(spotLat, spotLng) {
+  if (!userLocation) return false;
+  return userLocation.distanceTo(L.latLng(spotLat, spotLng)) <= 50000;
 }
