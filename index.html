@@ -211,37 +211,9 @@
     function openMenu() { document.getElementById("hamburgerMenu").classList.add("active"); }
     function closeMenu() { document.getElementById("hamburgerMenu").classList.remove("active"); }
 
-    // 地図と現在地の初期取得（50km圏内サークル：固定の水色の半透明サークル）
+    // 現在地の連続更新（50kmに変更）とグラデーション風サークル（複数の円で表現）
     var currentLocationMarker = null;
-    var userCircle = null;
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(function(position) {
-        var lat = position.coords.latitude;
-        var lng = position.coords.longitude;
-        userLocation = L.latLng(lat, lng);
-        // 初期表示はユーザー位置にズーム（最大ズーム18）
-        map.setView(userLocation, 18);
-        // 現在地ピンの表示
-        currentLocationMarker = L.marker(userLocation, { icon: userIcon }).addTo(map);
-        currentLocationMarker.bindPopup("あなたの現在地");
-        // 固定の50kmのサークル（薄い水色）
-        userCircle = L.circle(userLocation, {
-          radius: 50000,
-          color: '#a2d9ff',
-          fillColor: '#a2d9ff',
-          fillOpacity: 0.1,
-          stroke: false
-        }).addTo(map);
-        // 初回更新：スタンプカード更新
-        updateStampCard();
-      }, function(error) {
-        console.error("getCurrentPosition エラー: " + error.message);
-      }, { enableHighAccuracy: true });
-    } else {
-      console.error("Geolocation is not supported by this browser.");
-    }
-
-    // 現在地の連続更新（50km圏内のサークル位置を更新）
+    var userCircles = [];
     if (navigator.geolocation) {
       navigator.geolocation.watchPosition(function(position) {
         var lat = position.coords.latitude;
@@ -249,22 +221,33 @@
         userLocation = L.latLng(lat, lng);
         if (currentLocationMarker) {
           currentLocationMarker.setLatLng(userLocation);
+        } else {
+          currentLocationMarker = L.marker(userLocation, { icon: userIcon }).addTo(map);
+          currentLocationMarker.bindPopup("あなたの現在地");
         }
-        if (userCircle) {
-          userCircle.setLatLng(userLocation);
-        }
+        // グラデーション風のサークル：内側が濃く外側が薄くなるように3層
+        // まず既存の円を削除
+        userCircles.forEach(function(c) { map.removeLayer(c); });
+        userCircles = [];
+        userCircles.push(L.circle(userLocation, { radius: 50000, color: 'blue', fillColor: 'blue', fillOpacity: 0.2, stroke: false }).addTo(map));
+        userCircles.push(L.circle(userLocation, { radius: 40000, color: 'blue', fillColor: 'blue', fillOpacity: 0.3, stroke: false }).addTo(map));
+        userCircles.push(L.circle(userLocation, { radius: 30000, color: 'blue', fillColor: 'blue', fillOpacity: 0.4, stroke: false }).addTo(map));
         updateStampCard();
       }, function(error) {
-        console.error("watchPosition エラー: " + error.message);
+        console.error("Geolocation error: " + error.message);
       }, { enableHighAccuracy: true });
+    } else {
+      console.error("Geolocation is not supported by this browser.");
     }
 
-    // 現在地表示ボタン
+    // 現在地表示ボタン（地図を現在地にズーム）
     function locateUser() {
-      if (userLocation) { map.setView(userLocation, 18); }
+      if (userLocation) {
+        map.setView(userLocation, 18);
+      }
     }
 
-    // 50km圏内チェック
+    // isWithinRange：50km圏内チェックに変更
     function isWithinRange(spotLat, spotLng) {
       if (!userLocation) return false;
       return userLocation.distanceTo(L.latLng(spotLat, spotLng)) <= 50000;
@@ -274,12 +257,321 @@
       document.getElementById('pointsDisplay').innerText = "総ポイント: " + totalPoints;
     }
 
-    // スタンプカード更新：50km圏内の城のみ表示、説明文と取得日時を追加
+    // スタンプカード更新：50km圏内の城のみ表示し、各カードに説明文とスタンプ取得日時を追加
+    // 各城オブジェクトにダミーの説明文を追加
+    castleSpots.forEach((spot) => {
+      if (!spot.description) {
+        spot.description = "この城は歴史的に重要な場所です。多くの伝説が語られ、訪れる価値があります。";
+      }
+    });
+
     function updateStampCard() {
       var stampCard = document.getElementById('stampCard');
       stampCard.innerHTML = "";
       var groups = {};
-      // 50km圏内の城のみを対象
+      // ここで、半径50km圏内の城のみグループに追加
+      castleSpots.forEach(function(spot) {
+        if (isWithinRange(spot.lat, spot.lng)) {
+          var pref = spot.prefecture || "その他";
+          if (!groups[pref]) groups[pref] = [];
+          groups[pref].push(spot);
+        }
+      });
+      for (var pref in groups) {
+        var groupDiv = document.createElement('div');
+        groupDiv.className = "prefecture-group";
+        var title = document.createElement('div');
+        title.className = "prefecture-title";
+        title.innerText = pref;
+        groupDiv.appendChild(title);
+        var cardContainer = document.createElement('div');
+        cardContainer.className = "stamp-card";
+        groups[pref].forEach(function(spot) {
+          var stampItem = document.createElement('div');
+          stampItem.id = "stamp-card-" + spot.id;
+          stampItem.className = 'stamp-item' + (spot.stamped ? ' stamped' : '');
+          if (spot.id === highlightedSpotId) { stampItem.classList.add("highlight"); }
+          // 表示内容に説明文を追加
+          stampItem.innerHTML = '<img src="' + spot.defaultImage + 
+                                '" class="default-image" alt="' + spot.name + '"><h3>' + spot.name + '</h3>' +
+                                '<p class="castle-description">' + spot.description + '</p>';
+          // 取得済みなら日時も表示
+          if (spot.stamped && spot.stampTime) {
+            stampItem.innerHTML += '<p class="stamp-time">獲得日時: ' + spot.stampTime.toLocaleString("ja-JP") + '</p>';
+          }
+          var actionContainer = document.createElement('div');
+          if (!userLocation || !isWithinRange(spot.lat, spot.lng)) {
+            var btnOut = document.createElement('button');
+            btnOut.className = 'stamp-button';
+            btnOut.innerText = "圏外";
+            btnOut.disabled = true;
+            actionContainer.appendChild(btnOut);
+          } else {
+            if (!spot.stamped) {
+              if (!spot.photo) {
+                var photoBtn = document.createElement('button');
+                photoBtn.className = 'stamp-button';
+                photoBtn.innerText = "写真を撮る";
+                var fileInput = document.createElement('input');
+                fileInput.type = "file";
+                fileInput.accept = "image/*";
+                fileInput.style.display = "none";
+                photoBtn.onclick = function() { fileInput.click(); };
+                fileInput.onchange = function(event) {
+                  if (event.target.files && event.target.files[0]) {
+                    var file = event.target.files[0];
+                    spot.photo = URL.createObjectURL(file);
+                    spot.photoFile = file;
+                    updateStampCard();
+                  }
+                };
+                actionContainer.appendChild(photoBtn);
+                actionContainer.appendChild(fileInput);
+              } else {
+                var stampBtn = document.createElement('button');
+                stampBtn.className = 'stamp-button';
+                stampBtn.innerText = "スタンプ取得";
+                stampBtn.onclick = function() {
+                  if (!spot.stamped) {
+                    spot.stamped = true;
+                    // 記録時に日時も記録
+                    spot.stampTime = new Date();
+                    var pts = spot.points || 2;
+                    totalPoints += pts;
+                    updatePointsDisplay();
+                    alert(spot.name + "のスタンプを獲得しました！ " + pts + "ポイント獲得");
+                    spot.marker.setIcon(stampedIcon);
+                    updateStampCard();
+                    updateUserData();
+                  }
+                };
+                actionContainer.appendChild(stampBtn);
+                var imgPreview = document.createElement('img');
+                imgPreview.src = spot.photo;
+                imgPreview.className = "preview-image";
+                actionContainer.appendChild(imgPreview);
+              }
+            } else {
+              var obtainedBtn = document.createElement('button');
+              obtainedBtn.className = 'stamp-button';
+              obtainedBtn.innerText = "獲得済み";
+              obtainedBtn.disabled = true;
+              actionContainer.appendChild(obtainedBtn);
+              var shareBtn = document.createElement('button');
+              shareBtn.className = 'stamp-button';
+              shareBtn.innerText = "SNSでシェア";
+              shareBtn.onclick = function() {
+                if (navigator.share && spot.photoFile && navigator.canShare && navigator.canShare({files: [spot.photoFile]})) {
+                  navigator.share({
+                    title: spot.name + "のスタンプ",
+                    text: spot.name + "のスタンプを獲得しました！",
+                    files: [spot.photoFile]
+                  }).then(() => console.log("Shared successfully"))
+                    .catch((error) => console.log("Error sharing", error));
+                } else {
+                  var text = encodeURIComponent(spot.name + "のスタンプを獲得しました！");
+                  var url = encodeURIComponent(window.location.href);
+                  window.open("https://twitter.com/intent/tweet?text=" + text + "&url=" + url, "_blank");
+                }
+              };
+              actionContainer.appendChild(shareBtn);
+              if (spot.photo) {
+                var imgPreviewStamped = document.createElement('img');
+                imgPreviewStamped.src = spot.photo;
+                imgPreviewStamped.className = "preview-image";
+                actionContainer.appendChild(imgPreviewStamped);
+              }
+            }
+          }
+          stampItem.appendChild(actionContainer);
+          cardContainer.appendChild(stampItem);
+        });
+        groupDiv.appendChild(cardContainer);
+        stampCard.appendChild(groupDiv);
+      }
+    }
+
+    function updateUserData() {
+      const user = auth.currentUser;
+      if (user) {
+        let stampStatuses = {};
+        castleSpots.forEach((spot) => { 
+          stampStatuses[spot.id] = { 
+            stamped: spot.stamped, 
+            stampTime: spot.stampTime ? spot.stampTime.toISOString() : null 
+          }; 
+        });
+        db.collection("users").doc(user.uid).set({
+          totalPoints: totalPoints,
+          stampStatuses: stampStatuses
+        }, { merge: true });
+        loadRanking();
+      }
+    }
+
+    function loadRanking() {
+      db.collection("users")
+        .orderBy("totalPoints", "desc")
+        .limit(10)
+        .get()
+        .then((querySnapshot) => {
+          let html = "";
+          querySnapshot.forEach((doc) => {
+            const data = doc.data();
+            html += "<div>" + data.displayName + " : " + (data.totalPoints || 0) + "ポイント</div>";
+          });
+          document.getElementById("rankingList").innerHTML = html;
+        })
+        .catch((error) => { console.error("ランキング取得エラー: ", error); });
+    }
+
+    updateStampCard();
+    updatePointsDisplay();
+  </script>
+</head>
+<body>
+  <header>
+    <button id="menuToggle" onclick="openMenu()">☰</button>
+    <button id="locateBtn" onclick="locateUser()">現在地表示</button>
+    <h1>スタンプラリー</h1>
+    <p>全国の城・城址を巡ってスタンプを集めよう！</p>
+    <div id="loginStatus" style="margin-top:10px;">未ログイン</div>
+  </header>
+
+  <!-- ハンバーガーメニュー -->
+  <div id="hamburgerMenu">
+    <button id="menuClose" onclick="closeMenu()">×</button>
+    <h2>ユーザー認証</h2>
+    <div id="authForm" class="auth-form">
+      <input type="text" id="signupName" placeholder="氏名（新規登録）">
+      <input type="email" id="signupEmail" placeholder="メールアドレス（新規登録）">
+      <input type="password" id="signupPassword" placeholder="パスワード（新規登録）">
+      <button onclick="新規登録()">新規登録</button>
+      <br>
+      <input type="email" id="loginEmail" placeholder="メールアドレス（ログイン）">
+      <input type="password" id="loginPassword" placeholder="パスワード（ログイン）">
+      <button onclick="ログイン()">ログイン</button>
+    </div>
+    <button id="logoutBtn" onclick="ログアウト()" style="display:none;">ログアウト</button>
+    <!-- ランキング表示 -->
+    <div id="rankingSection">
+      <h2>ランキング</h2>
+      <div id="rankingList">読み込み中…</div>
+    </div>
+  </div>
+
+  <div id="map"></div>
+
+  <div class="container">
+    <div id="pointsDisplay">総ポイント: 0</div>
+    <h2>スタンプカード</h2>
+    <div id="stampCard">
+      <!-- 50km圏内の城のみ表示（都道府県ごとにグループ分け） -->
+    </div>
+  </div>
+
+  <footer>リリース更新日: 2025-03-06</footer>
+
+  <!-- LeafletとMarkerCluster -->
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+  <script src="https://unpkg.com/leaflet.markercluster/dist/leaflet.markercluster.js"></script>
+  <script>
+    // カスタムアイコンの再定義
+    var defaultIcon = new L.Icon({
+      iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-blue.png',
+      shadowUrl: 'https://unpkg.com/leaflet@1.6/dist/images/marker-shadow.png',
+      iconSize: [25, 41],
+      iconAnchor: [12, 41],
+      popupAnchor: [1, -34],
+      shadowSize: [41, 41]
+    });
+    var stampedIcon = new L.Icon({
+      iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-grey.png',
+      shadowUrl: 'https://unpkg.com/leaflet@1.6/dist/images/marker-shadow.png',
+      iconSize: [25, 41],
+      iconAnchor: [12, 41],
+      popupAnchor: [1, -34],
+      shadowSize: [41, 41]
+    });
+    var userIcon = new L.Icon({
+      iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-red.png',
+      shadowUrl: 'https://unpkg.com/leaflet@1.6/dist/images/marker-shadow.png',
+      iconSize: [25, 41],
+      iconAnchor: [12, 41],
+      popupAnchor: [1, -34],
+      shadowSize: [41, 41]
+    });
+
+    // 地図初期設定
+    var map = L.map('map').setView([36, 138], 5);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; OpenStreetMap contributors'
+    }).addTo(map);
+
+    var markers = L.markerClusterGroup();
+    var dummyImage = "https://gigaplus.makeshop.jp/hw2019/images/pages/page2/takane_img06.jpg";
+    var castleSpots = [
+      { id: 1,  name: "姫路城",     lat: 34.8394, lng: 134.6939, stamped: false, photo: null, defaultImage: dummyImage, prefecture: "兵庫県", description: "この城は歴史的に重要な場所です。多くの伝説が語られています。" },
+      { id: 2,  name: "大阪城",     lat: 34.6873, lng: 135.5259, stamped: false, photo: null, defaultImage: dummyImage, prefecture: "大阪府", description: "この城は壮大な天守閣で知られ、訪れる人々を魅了します。" },
+      { id: 3,  name: "名古屋城",   lat: 35.1850, lng: 136.9066, stamped: false, photo: null, defaultImage: dummyImage, prefecture: "愛知県", description: "名古屋城は歴史と現代文化が交差する、重要な観光名所です。" },
+      { id: 4,  name: "熊本城",     lat: 32.8031, lng: 130.7079, stamped: false, photo: null, defaultImage: dummyImage, prefecture: "熊本県", description: "熊本城はその美しい城郭と、災害からの復興で知られています。" },
+      { id: 5,  name: "松本城",     lat: 36.2381, lng: 137.9681, stamped: false, photo: null, defaultImage: dummyImage, prefecture: "長野県", description: "松本城は現存する国宝級の城郭で、その美しさが評価されています。" },
+      { id: 6,  name: "弘前城",     lat: 40.6045, lng: 140.4637, stamped: false, photo: null, defaultImage: dummyImage, prefecture: "青森県", description: "弘前城は桜の名所としても有名で、季節ごとの景観が楽しめます。" },
+      { id: 7,  name: "二条城",     lat: 35.0214, lng: 135.7524, stamped: false, photo: null, defaultImage: dummyImage, prefecture: "京都府", description: "二条城は古都京都の歴史を感じさせる、美しい建築物です。" },
+      { id: 8,  name: "松山城",     lat: 33.8394, lng: 132.7663, stamped: false, photo: null, defaultImage: dummyImage, prefecture: "愛媛県", description: "松山城は高台に位置し、四国を一望できる絶景スポットです。" },
+      { id: 9,  name: "丸亀城",     lat: 34.2772, lng: 133.7593, stamped: false, photo: null, defaultImage: dummyImage, prefecture: "香川県", description: "丸亀城は独特の風格を持つ、歴史ある城跡です。" },
+      { id: 10, name: "高知城",     lat: 33.5597, lng: 133.5311, stamped: false, photo: null, defaultImage: dummyImage, prefecture: "高知県", description: "高知城は高知の中心に位置し、歴史と自然が融合した名城です。" },
+      { id: 11, name: "岡山城",     lat: 34.6551, lng: 133.9183, stamped: false, photo: null, defaultImage: dummyImage, prefecture: "岡山県", description: "岡山城は美しい石垣と共に、多くの歴史的エピソードを持っています。" },
+      { id: 12, name: "金沢城",     lat: 36.5613, lng: 136.6562, stamped: false, photo: null, defaultImage: dummyImage, prefecture: "石川県", description: "金沢城は兼六園とともに、金沢の歴史を彩る重要な遺産です。" },
+      { id: 13, name: "福山城",     lat: 34.4833, lng: 133.3640, stamped: false, photo: null, defaultImage: dummyImage, prefecture: "広島県", description: "福山城はその歴史的価値と美しい景観で、観光客に人気です。" },
+      { id: 14, name: "江戸城跡",   lat: 35.6852, lng: 139.7528, stamped: false, photo: null, defaultImage: dummyImage, prefecture: "東京都", description: "江戸城跡は江戸時代の栄華を偲ばせる、貴重な遺構です。" },
+      { id: 15, name: "敦賀城",     lat: 35.6000, lng: 135.2000, stamped: false, photo: null, defaultImage: dummyImage, prefecture: "福井県", description: "敦賀城は海に近く、歴史と自然が感じられる美しい城跡です。" },
+      { id: 16, name: "伊賀上野城", lat: 34.7333, lng: 136.1833, stamped: false, photo: null, defaultImage: dummyImage, prefecture: "三重県", description: "伊賀上野城は忍者の里としても有名で、歴史と伝説が息づいています。" },
+      { id: 17, name: "彦根城",     lat: 35.2753, lng: 136.1264, stamped: false, photo: null, defaultImage: dummyImage, prefecture: "滋賀県", description: "彦根城は国宝に指定されている、優美な城郭です。" },
+      { id: 18, name: "松江城",     lat: 35.4667, lng: 133.0500, stamped: false, photo: null, defaultImage: dummyImage, prefecture: "島根県", description: "松江城は日本で唯一現存する平山城の一つとして知られています。" },
+      { id: 19, name: "宇和島城",   lat: 33.9833, lng: 132.7667, stamped: false, photo: null, defaultImage: dummyImage, prefecture: "愛媛県", description: "宇和島城はその独特な立地と美しい景観が魅力です。" },
+      { id: 20, name: "犬山城",     lat: 35.3250, lng: 136.9500, stamped: false, photo: null, defaultImage: dummyImage, prefecture: "愛知県", description: "犬山城は国宝に指定された、日本最古の木造天守です。" },
+      { id: 21, name: "岩国城",     lat: 34.1667, lng: 132.1833, stamped: false, photo: null, defaultImage: dummyImage, prefecture: "山口県", description: "岩国城は美しい橋と石垣が印象的な、歴史的城跡です。" },
+      { id: 22, name: "会津若松城", lat: 37.4922, lng: 139.9292, stamped: false, photo: null, defaultImage: dummyImage, prefecture: "福島県", description: "会津若松城は「鶴ヶ城」としても親しまれ、その堅固さが魅力です。" },
+      { id: 23, name: "広島城",     lat: 34.3956, lng: 132.4597, stamped: false, photo: null, defaultImage: dummyImage, prefecture: "広島県", description: "広島城は平和の象徴として、歴史的意義のある城跡です。" },
+      { id: 24, name: "上田城",     lat: 36.3843, lng: 138.2494, stamped: false, photo: null, defaultImage: dummyImage, prefecture: "長野県", description: "上田城はその独特な城郭と歴史的背景で知られています。" },
+      { id: 25, name: "小田原城",   lat: 35.2550, lng: 139.1500, stamped: false, photo: null, defaultImage: dummyImage, prefecture: "神奈川県", description: "小田原城は戦国時代の要衝として、多くの伝説が語られています。" },
+      { id: 26, name: "鹿児島城",   lat: 31.5600, lng: 130.5581, stamped: false, photo: null, defaultImage: dummyImage, prefecture: "鹿児島県", description: "鹿児島城は温暖な気候の中に歴史を刻む、情緒ある城跡です。" },
+      { id: 27, name: "首里城",     lat: 26.2173, lng: 127.7170, stamped: false, photo: null, defaultImage: dummyImage, prefecture: "沖縄県", description: "首里城は琉球王国の象徴として、多くの観光客が訪れます。" },
+      { id: 28, name: "堺城",       lat: 34.5673, lng: 135.5159, stamped: false, photo: null, defaultImage: dummyImage, prefecture: "大阪府", description: "堺城はかつての城下町の栄華を今に伝える貴重な史跡です。" },
+      { id: 29, name: "上野城",     lat: 35.7184, lng: 139.7121, stamped: false, photo: null, defaultImage: dummyImage, prefecture: "東京都", description: "上野城は近代日本の歴史を感じさせる、落ち着いた城跡です。" },
+      { id: 30, name: "津山城",     lat: 35.3308, lng: 134.0552, stamped: false, photo: null, defaultImage: dummyImage, prefecture: "岡山県", description: "津山城はその美しい景観と歴史的エピソードで知られています。" },
+      { id: 31, name: "表木城址",   lat: 35.7861114, lng: 137.874874, stamped: false, photo: null, defaultImage: dummyImage, points: 10, prefecture: "岐阜県", description: "表木城址は特別な価値を持つ城跡として、10ポイントが設定されています。" }
+    ];
+
+    castleSpots.forEach(function(spot) {
+      var marker = L.marker([spot.lat, spot.lng], { icon: defaultIcon });
+      marker.bindPopup(spot.name);
+      spot.marker = marker;
+      marker.on('click', function() {
+        map.setView([spot.lat, spot.lng], 18);
+        highlightedSpotId = spot.id;
+        updateStampCard();
+      });
+      markers.addLayer(marker);
+    });
+    map.addLayer(markers);
+
+    var totalPoints = 0;
+    // isWithinRange：50km圏内チェック
+    function isWithinRange(spotLat, spotLng) {
+      if (!userLocation) return false;
+      return userLocation.distanceTo(L.latLng(spotLat, spotLng)) <= 50000;
+    }
+    function updatePointsDisplay() {
+      document.getElementById('pointsDisplay').innerText = "総ポイント: " + totalPoints;
+    }
+    // スタンプカード更新：50km圏内の城のみ表示。説明文と取得日時も表示
+    function updateStampCard() {
+      var stampCard = document.getElementById('stampCard');
+      stampCard.innerHTML = "";
+      var groups = {};
+      // 半径50km圏内の城のみグループに追加
       castleSpots.forEach(function(spot) {
         if (isWithinRange(spot.lat, spot.lng)) {
           var pref = spot.prefecture || "その他";
@@ -432,64 +724,16 @@
         .catch((error) => { console.error("ランキング取得エラー: ", error); });
     }
 
-    // 初回表示：updateStampCardとupdatePointsDisplay
+    // 初回表示
     updateStampCard();
     updatePointsDisplay();
-
-    // 現在地表示ボタン
+    
+    // 現在地表示ボタン（地図を現在地にズーム）
     function locateUser() {
-      if (userLocation) { map.setView(userLocation, 18); }
+      if (userLocation) {
+        map.setView(userLocation, 18);
+      }
     }
-  </script>
-</head>
-<body>
-  <header>
-    <button id="menuToggle" onclick="openMenu()">☰</button>
-    <button id="locateBtn" onclick="locateUser()">現在地表示</button>
-    <h1>スタンプラリー</h1>
-    <p>全国の城・城址を巡ってスタンプを集めよう！</p>
-    <div id="loginStatus" style="margin-top:10px;">未ログイン</div>
-  </header>
-
-  <!-- ハンバーガーメニュー -->
-  <div id="hamburgerMenu">
-    <button id="menuClose" onclick="closeMenu()">×</button>
-    <h2>ユーザー認証</h2>
-    <div id="authForm" class="auth-form">
-      <input type="text" id="signupName" placeholder="氏名（新規登録）">
-      <input type="email" id="signupEmail" placeholder="メールアドレス（新規登録）">
-      <input type="password" id="signupPassword" placeholder="パスワード（新規登録）">
-      <button onclick="新規登録()">新規登録</button>
-      <br>
-      <input type="email" id="loginEmail" placeholder="メールアドレス（ログイン）">
-      <input type="password" id="loginPassword" placeholder="パスワード（ログイン）">
-      <button onclick="ログイン()">ログイン</button>
-    </div>
-    <button id="logoutBtn" onclick="ログアウト()" style="display:none;">ログアウト</button>
-    <!-- ランキング表示 -->
-    <div id="rankingSection">
-      <h2>ランキング</h2>
-      <div id="rankingList">読み込み中…</div>
-    </div>
-  </div>
-
-  <div id="map"></div>
-
-  <div class="container">
-    <div id="pointsDisplay">総ポイント: 0</div>
-    <h2>スタンプカード</h2>
-    <div id="stampCard">
-      <!-- 50km圏内の城のみ表示（都道府県ごとにグループ分け） -->
-    </div>
-  </div>
-
-  <footer>リリース更新日: 2025-03-06</footer>
-
-  <!-- LeafletとMarkerCluster -->
-  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
-  <script src="https://unpkg.com/leaflet.markercluster/dist/leaflet.markercluster.js"></script>
-  <script>
-    // ここ以降、重複定義は不要（上記スクリプトで完結）
   </script>
 </body>
 </html>
