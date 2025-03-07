@@ -15,7 +15,7 @@ const db = firebase.firestore();
 let totalPoints = 0;
 let userLocation = null;
 let currentLocationMarker = null;
-let userCircle = null;
+let userCircles = []; // グラデーション風サークル用の配列
 let highlightedSpotId = null;
 
 // 地図の初期設定
@@ -73,7 +73,7 @@ let castleSpots = [
   { id: 18, name: "松江城",     lat: 35.4667, lng: 133.0500, stamped: false, photo: null, defaultImage: "https://gigaplus.makeshop.jp/hw2019/images/pages/page2/takane_img06.jpg", prefecture: "島根県", description: "松江城は日本で唯一現存する平山城の一つとして知られています。" },
   { id: 19, name: "宇和島城",   lat: 33.9833, lng: 132.7667, stamped: false, photo: null, defaultImage: "https://gigaplus.makeshop.jp/hw2019/images/pages/page2/takane_img06.jpg", prefecture: "愛媛県", description: "宇和島城はその独特な立地と美しい景観が魅力です。" },
   { id: 20, name: "犬山城",     lat: 35.3250, lng: 136.9500, stamped: false, photo: null, defaultImage: "https://gigaplus.makeshop.jp/hw2019/images/pages/page2/takane_img06.jpg", prefecture: "愛知県", description: "犬山城は国宝に指定された、日本最古の木造天守です。" },
-  // ...（他の城データも同様に追加してください）...
+  // ... 他の城データも同様に追加してください ...
   { id: 31, name: "表木城址",   lat: 35.7861114, lng: 137.874874, stamped: false, photo: null, defaultImage: "https://gigaplus.makeshop.jp/hw2019/images/pages/page2/takane_img06.jpg", points: 10, prefecture: "岐阜県", description: "表木城址は特別な価値を持つ城跡として、10ポイントが設定されています。" }
 ];
 
@@ -92,7 +92,6 @@ castleSpots.forEach(spot => {
 map.addLayer(markers);
 
 // 認証・ユーザー関連関数
-
 function 新規登録() {
   const name = document.getElementById("signupName").value;
   const email = document.getElementById("signupEmail").value;
@@ -224,13 +223,30 @@ if (navigator.geolocation) {
     map.setView(userLocation, 18);
     currentLocationMarker = L.marker(userLocation, { icon: userIcon }).addTo(map);
     currentLocationMarker.bindPopup("あなたの現在地");
-    userCircle = L.circle(userLocation, {
+    // グラデーション風のサークル（薄い水色で半透明）
+    userCircles.forEach(circle => { map.removeLayer(circle); });
+    userCircles = [];
+    userCircles.push(L.circle(userLocation, {
       radius: 50000,
       color: '#a2d9ff',
       fillColor: '#a2d9ff',
       fillOpacity: 0.1,
       stroke: false
-    }).addTo(map);
+    }).addTo(map));
+    userCircles.push(L.circle(userLocation, {
+      radius: 40000,
+      color: '#a2d9ff',
+      fillColor: '#a2d9ff',
+      fillOpacity: 0.07,
+      stroke: false
+    }).addTo(map));
+    userCircles.push(L.circle(userLocation, {
+      radius: 30000,
+      color: '#a2d9ff',
+      fillColor: '#a2d9ff',
+      fillOpacity: 0.05,
+      stroke: false
+    }).addTo(map));
     updateStampCard();
   }, error => {
     console.error("getCurrentPosition エラー: " + error.message);
@@ -248,18 +264,30 @@ if (navigator.geolocation) {
     if (currentLocationMarker) {
       currentLocationMarker.setLatLng(userLocation);
     }
-    if (userCircle) {
-      userCircle.setLatLng(userLocation);
-    } else {
-      // サークルが存在しなければ再生成
-      userCircle = L.circle(userLocation, {
-        radius: 50000,
-        color: '#a2d9ff',
-        fillColor: '#a2d9ff',
-        fillOpacity: 0.1,
-        stroke: false
-      }).addTo(map);
-    }
+    // サークルが存在している場合は全削除し再生成
+    userCircles.forEach(circle => { map.removeLayer(circle); });
+    userCircles = [];
+    userCircles.push(L.circle(userLocation, {
+      radius: 50000,
+      color: '#a2d9ff',
+      fillColor: '#a2d9ff',
+      fillOpacity: 0.1,
+      stroke: false
+    }).addTo(map));
+    userCircles.push(L.circle(userLocation, {
+      radius: 40000,
+      color: '#a2d9ff',
+      fillColor: '#a2d9ff',
+      fillOpacity: 0.07,
+      stroke: false
+    }).addTo(map));
+    userCircles.push(L.circle(userLocation, {
+      radius: 30000,
+      color: '#a2d9ff',
+      fillColor: '#a2d9ff',
+      fillOpacity: 0.05,
+      stroke: false
+    }).addTo(map));
     updateStampCard();
   }, error => {
     console.error("watchPosition エラー: " + error.message);
@@ -268,9 +296,7 @@ if (navigator.geolocation) {
 
 // 現在地表示ボタン
 function locateUser() {
-  if (userLocation) {
-    map.setView(userLocation, 18);
-  }
+  if (userLocation) { map.setView(userLocation, 18); }
 }
 
 // 50km圏内チェック
