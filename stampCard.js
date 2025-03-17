@@ -1,6 +1,6 @@
 // stampCard.js
 
-// Firebase Storage を利用した写真アップロード
+// Firebase Storage を利用した写真アップロード（今回は使用しないので残していますが、ダミーデータを利用します）
 function uploadPhoto(spot, file) {
   const user = auth.currentUser;
   if (!user) {
@@ -13,6 +13,7 @@ function uploadPhoto(spot, file) {
   return fileRef.put(file)
     .then(snapshot => snapshot.ref.getDownloadURL());
 }
+
 // ダミーの写真 URL 配列（グローバル変数として定義）
 const dummyPhotoURLs = [
   "https://assets.st-note.com/production/uploads/images/120566836/rectangle_large_type_2_db692b996219eb34650cef420635a31b.png",
@@ -49,7 +50,7 @@ function updateStampCard() {
       if (spot.id === highlightedSpotId) { 
         stampItem.classList.add("highlight");
       }
-      // 城名と説明文を表示（ダミー画像は使用せず、アップロードされた写真のみ表示）
+      // 城名と説明文を表示（defaultImage は使用せず、アップロードされた写真のみ表示）
       stampItem.innerHTML = '<h3>' + spot.name + '</h3>' +
                             '<p class="castle-description">' + spot.description + '</p>';
       
@@ -84,6 +85,10 @@ function updateStampCard() {
           let randomIndex = Math.floor(Math.random() * dummyPhotoURLs.length);
           let dummyURL = dummyPhotoURLs[randomIndex];
           spot.uploadedPhotos.push(dummyURL);
+          // 写真アップロード時にポイントを付与（ここでは例として1ポイント付与）
+          let pts = 1;
+          totalPoints += pts;
+          alert(spot.name + " の写真アップロードで " + pts + " ポイント獲得！");
           updateStampCard();
           updateUserData();
         };
@@ -96,7 +101,6 @@ function updateStampCard() {
     stampCard.appendChild(groupDiv);
   }
 }
-
 
 function updatePointsDisplay() {
   document.getElementById('pointsDisplay').innerText = "総ポイント: " + totalPoints;
