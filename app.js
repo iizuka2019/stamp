@@ -1,3 +1,14 @@
+// ダミーの写真 URL 配列（グローバル変数として定義）
+const dummyPhotoURLs = [
+  "https://assets.st-note.com/production/uploads/images/120566836/rectangle_large_type_2_db692b996219eb34650cef420635a31b.png",
+  "https://assets.st-note.com/production/uploads/images/120573954/rectangle_large_type_2_0cea5b992f48da3b63c53d7d10ab9a55.png",
+  "https://assets.st-note.com/production/uploads/images/120574983/rectangle_large_type_2_564d6de6b67df4446f5a6d961307c928.png",
+  "https://assets.st-note.com/production/uploads/images/120581790/rectangle_large_type_2_7c324d27068cba23cd8948fbd9e8d163.png",
+  "https://assets.st-note.com/production/uploads/images/120591518/rectangle_large_type_2_ce36d3920374d82d2cd1641dfca48857.png"
+];
+
+
+
 // Firebaseの初期化
 const firebaseConfig = {
   apiKey: "AIzaSyDKoSPR75Je99OtMywNCx7Wdufo2sqRo0Q",
