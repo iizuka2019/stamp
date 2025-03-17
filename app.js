@@ -134,7 +134,9 @@ let castleSpots = [
   { id: 87, name: "中野区史跡",             lat: 35.7100, lng: 139.6700, stamped: false, photo: null, defaultImage: "https://example.com/nakano.jpg", prefecture: "東京都", description: "中野区内に残る歴史的建造物跡の一部です。（仮称）" },
   { id: 88, name: "杉並区史跡",             lat: 35.7000, lng: 139.6500, stamped: false, photo: null, defaultImage: "https://example.com/suginami.jpg", prefecture: "東京都", description: "杉並区内の伝統的な街並みや建造物跡を示す史跡です。（仮称）" },
   { id: 89, name: "練馬区古墳跡",           lat: 35.7400, lng: 139.6800, stamped: false, photo: null, defaultImage: "https://example.com/nerima.jpg", prefecture: "東京都", description: "練馬区に点在する古代遺跡の一部としての史跡です。（仮称）" },
-  { id: 90, name: "町田市史跡",             lat: 35.5500, lng: 139.4500, stamped: false, photo: null, defaultImage: "https://example.com/machida.jpg", prefecture: "東京都", description: "町田市内の歴史的な民家群や城跡が見られる地域です。（仮称）" }
+  { id: 90, name: "ルビーの里 エクステリアガーデン",           lat: 35.7048771, lng: 137.9268813, stamped: false, photo: null, defaultImage: "https://example.com/nerima.jpg", prefecture: "長野県", description: "弊社工場に隣接するオーニング展示場を、公園として開放しています。赤ソバ畑をはじめ、四季折々の花々をお楽しみいただける憩いの空間です。" },
+  { id: 91, name: "ルビーの里 駒ヶ岳ガーデン",           lat: 35.7496853, lng: 137.9041551, stamped: false, photo: null, defaultImage: "https://example.com/nerima.jpg", prefecture: "長野県", description: "中央アルプス西駒ケ岳山麓。カラマツやシラカバに囲まれ、赤い花のソバが幻想的に咲いています。この一帯は「アサギマダラの里」や「こもれ陽の径」とも隣接する貴重な里山林で、散策をお楽しみいただけます。" },
+  { id: 92, name: "町田市史跡",             lat: 35.5500, lng: 139.4500, stamped: false, photo: null, defaultImage: "https://example.com/machida.jpg", prefecture: "東京都", description: "町田市内の歴史的な民家群や城跡が見られる地域です。（仮称）" }
 ];
 
 // マーカーの追加
