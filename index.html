@@ -64,5 +64,13 @@
   <script src="https://unpkg.com/leaflet.markercluster/dist/leaflet.markercluster.js"></script>
   <!-- アプリケーションロジック -->
   <script src="app.js"></script>
+
+
+    <!-- 写真拡大用のモーダル -->
+  <div id="photoModal" class="photo-modal" onclick="closePhotoModal(event)">
+    <span id="modalClose" class="modal-close" onclick="closePhotoModal(event)">×</span>
+    <img id="modalImage" class="modal-image" alt="拡大画像">
+  </div>
+  
 </body>
 </html>
