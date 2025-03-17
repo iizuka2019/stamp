@@ -395,11 +395,21 @@ function updateStampCard() {
       stampItem.id = "stamp-card-" + spot.id;
       stampItem.className = 'stamp-item' + (spot.stamped ? ' stamped' : '');
       if (spot.id === highlightedSpotId) { stampItem.classList.add("highlight"); }
-      stampItem.innerHTML = '<img src="' + spot.defaultImage + '" class="default-image" alt="' + spot.name + '"><h3>' + spot.name + '</h3>' +
-                            '<p class="castle-description">' + spot.description + '</p>';
+
+       // サムネイル画像や説明文などを表示
+      stampItem.innerHTML = `
+        <img src="${spot.defaultImage}" class="default-image" alt="${spot.name}">
+        <h3>${spot.name}</h3>
+        <p class="castle-description">${spot.description}</p>
+      `;
+
       if (spot.stamped && spot.stampTime) {
-        stampItem.innerHTML += '<p class="stamp-time">獲得日時: ' + spot.stampTime.toLocaleString("ja-JP") + '</p>';
+        stampItem.innerHTML += `
+          <p class="stamp-time">
+            獲得日時: ${spot.stampTime.toLocaleString("ja-JP")}
+          </p>`;
       }
+      
       let actionContainer = document.createElement('div');
       if (!userLocation || !isWithinRange(spot.lat, spot.lng)) {
         let btnOut = document.createElement('button');
@@ -483,6 +493,30 @@ function updateStampCard() {
           }
         }
       }
+
+
+       // ▼ ▼ ▼ ここからギャラリー追加 ▼ ▼ ▼
+      // ダミー写真のURLをタイル状に並べる
+      let galleryDiv = document.createElement('div');
+      galleryDiv.className = "photo-gallery";
+
+      dummyPhotoURLs.forEach((url) => {
+        let thumb = document.createElement('img');
+        thumb.src = url;
+        thumb.className = "uploaded-photo";
+        thumb.alt = "サンプル写真";
+        // クリックで拡大表示
+        thumb.onclick = function() {
+          openPhotoModal(url);
+        };
+        galleryDiv.appendChild(thumb);
+      });
+
+      // アクションコンテナにギャラリーをまとめて追加
+      actionContainer.appendChild(galleryDiv);
+      // ▲ ▲ ▲ ここまでギャラリー追加 ▲ ▲ ▲
+
+      
       stampItem.appendChild(actionContainer);
       cardContainer.appendChild(stampItem);
     });
@@ -490,6 +524,24 @@ function updateStampCard() {
     stampCard.appendChild(groupDiv);
   }
 }
+
+// 写真を拡大表示するモーダルを開く関数
+function openPhotoModal(imageUrl) {
+  const modal = document.getElementById("photoModal");
+  const modalImage = document.getElementById("modalImage");
+  modalImage.src = imageUrl;
+  modal.style.display = "block";
+}
+
+// モーダルを閉じる関数
+function closePhotoModal(event) {
+  // イベント元が画像や×ボタンではなく、モーダル背景そのものの場合も閉じる
+  const modal = document.getElementById("photoModal");
+  if (event.target.id === "photoModal" || event.target.id === "modalClose") {
+    modal.style.display = "none";
+  }
+}
+
 
 function updateUserData() {
   const user = auth.currentUser;
