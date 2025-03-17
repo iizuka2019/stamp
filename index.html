@@ -57,13 +57,28 @@
     </div>
   </div>
 
-  <footer>リリース更新日: 2025-03-14 17:27:00</footer>
+  <footer>リリース更新日: 2025-03-17 18:30:00</footer>
+
+  <!-- アプリケーションロジック -->
+  <!--<script src="app.js"></script>-->
+  
+  <!-- Firebase SDK の読み込み（storage含む） -->
+  <script src="https://www.gstatic.com/firebasejs/9.21.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.21.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.21.0/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.21.0/firebase-storage-compat.js"></script>
 
   <!-- LeafletとMarkerClusterのJS -->
+  <!-- 外部ライブラリ -->
   <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
   <script src="https://unpkg.com/leaflet.markercluster/dist/leaflet.markercluster.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.21.0/firebase-storage-compat.js"></script>
-  <!-- アプリケーションロジック -->
-  <script src="app.js"></script>
+  
+  <!-- 分割したJSファイルの読み込み -->
+  <script src="firebase-config.js"></script>
+  <script src="globals.js"></script>
+  <script src="auth.js"></script>
+  <script src="map.js"></script>
+  <script src="stampCard.js"></script>
+  
 </body>
 </html>
