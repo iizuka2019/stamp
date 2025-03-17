@@ -57,3 +57,9 @@ auth.onAuthStateChanged(user => {
     document.getElementById("logoutBtn").style.display = "none";
   }
 });
+
+
+// ハンバーガーメニュー制御
+function openMenu() { document.getElementById("hamburgerMenu").classList.add("active"); }
+function closeMenu() { document.getElementById("hamburgerMenu").classList.remove("active"); }
+
