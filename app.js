@@ -397,11 +397,10 @@ function updateStampCard() {
       if (spot.id === highlightedSpotId) { stampItem.classList.add("highlight"); }
 
        // サムネイル画像や説明文などを表示
-      stampItem.innerHTML = `
-        <img src="${spot.defaultImage}" class="default-image" alt="${spot.name}">
-        <h3>${spot.name}</h3>
-        <p class="castle-description">${spot.description}</p>
-      `;
+stampItem.innerHTML = `
+  <h3>${spot.name}</h3>
+  <p class="castle-description">${spot.description}</p>
+`;
 
       if (spot.stamped && spot.stampTime) {
         stampItem.innerHTML += `
