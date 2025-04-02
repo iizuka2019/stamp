@@ -74,17 +74,28 @@
             text-align: center;
             min-height: 20px;
         }
+        .finger-data-container {
+            display: flex;
+            gap: 20px;
+            width: 100%;
+            max-width: 640px;
+        }
         .finger-data {
             font-family: monospace;
             background-color: #fff;
             border-radius: 4px;
             padding: 10px;
             box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-            max-width: 640px;
             width: 100%;
             min-height: 100px;
             max-height: 200px;
             overflow-y: auto;
+        }
+        .finger-data-left {
+            border-left: 5px solid green;
+        }
+        .finger-data-right {
+            border-left: 5px solid red;
         }
     </style>
 </head>
@@ -92,6 +103,9 @@
     <h1>指の動き検知アプリ</h1>
     <div class="container">
         <div class="status" id="status">カメラへのアクセスを許可してください...</div>
+    <div style="text-align: center; margin-bottom: 10px; font-size: 14px; color: #666;">
+        <p>※ 左手は緑色、右手は赤色で表示されます</p>
+    </div>
         <div class="video-container">
             <video id="video" playsinline></video>
             <canvas id="canvas"></canvas>
@@ -100,7 +114,10 @@
             <button id="start-btn">開始</button>
             <button id="stop-btn" disabled>停止</button>
         </div>
-        <div class="finger-data" id="finger-data">指の位置データがここに表示されます</div>
+        <div class="finger-data-container">
+            <div class="finger-data finger-data-left" id="finger-data-left">左手のデータがここに表示されます</div>
+            <div class="finger-data finger-data-right" id="finger-data-right">右手のデータがここに表示されます</div>
+        </div>
     </div>
 
     <script>
@@ -110,7 +127,8 @@
         const startButton = document.getElementById('start-btn');
         const stopButton = document.getElementById('stop-btn');
         const statusElement = document.getElementById('status');
-        const fingerDataElement = document.getElementById('finger-data');
+        const fingerDataLeftElement = document.getElementById('finger-data-left');
+        const fingerDataRightElement = document.getElementById('finger-data-right');
         
         let stream = null;
         let handposeModel = null;
@@ -166,7 +184,14 @@
         async function loadHandposeModel() {
             try {
                 statusElement.textContent = 'モデルを読み込み中...';
-                handposeModel = await handpose.load();
+                // 両手を検出するために適切なオプションを設定
+                const handposeOptions = {
+                    maxHands: 2,         // 最大2つの手を検出
+                    detectionConfidence: 0.6,  // 検出信頼度のしきい値
+                    iouThreshold: 0.3,    // 重複検出のしきい値
+                    scoreThreshold: 0.5   // スコアのしきい値
+                };
+                handposeModel = await handpose.load(handposeOptions);
                 statusElement.textContent = 'モデルの読み込みが完了しました。開始ボタンを押して検出を開始してください。';
                 startButton.disabled = false;
             } catch (error) {
@@ -180,8 +205,7 @@
             if (!isTracking) return;
             
             try {
-                // 一度に複数の手を検出するために、handposeモデルを2回実行します
-                // 1回目と2回目の検出結果を比較して、異なる手として識別します
+                // Handposeモデルに明示的にオプションを渡して、複数の手を検出できるようにする
                 const handsDetection = await handposeModel.estimateHands(videoElement);
                 
                 // キャンバスをクリア
@@ -194,116 +218,70 @@
                 ctx.drawImage(videoElement, 0, 0, canvasElement.width, canvasElement.height);
                 ctx.restore();
                 
-                let fingerDataText = '';
+                let leftHandFingerDataText = '';
+                let rightHandFingerDataText = '';
                 let detectedHandsCount = handsDetection.length;
                 
-                // 検出された手の数に基づいてステータスを更新
-                if (detectedHandsCount === 0) {
-                    fingerDataText = '手が検出されていません。カメラに手を映してください。';
-                    statusElement.textContent = '手が検出されていません...';
-                } else {
-                    statusElement.textContent = `${detectedHandsCount}つの手を検出しました！`;
-                    fingerDataText = '検出された指の位置:\n';
+                // 左手と右手を分類
+                const leftHands = [];
+                const rightHands = [];
+                
+                for (const hand of handsDetection) {
+                    const landmarks = hand.landmarks;
+                    const wristX = landmarks[0][0];
+                    const thumbX = landmarks[4][0];
+                    const isRightHand = thumbX < wristX;
                     
-                    // 各手を処理
-                    for (let handIndex = 0; handIndex < handsDetection.length; handIndex++) {
-                        const hand = handsDetection[handIndex];
-                        const landmarks = hand.landmarks;
-                        
-                        // 手が左右どちらかを判断
-                        // 親指の位置が手首に対して左側にあれば右手、右側にあれば左手と仮定
-                        const wristX = landmarks[0][0];
-                        const thumbX = landmarks[4][0];
-                        const isRightHand = thumbX < wristX;
-                        const handType = isRightHand ? '右手' : '左手';
-                        
-                        // 各手のカラーを設定
-                        const handColor = isRightHand ? 'red' : 'green';
-                        const lineColor = isRightHand ? 'darkred' : 'darkgreen';
-                        
-                        // 手のタイプをデータテキストに追加
-                        fingerDataText += `\n====== ${handType} ======\n`;
-                        
-                        // まず、各指のキーポイントを描画
-                        for (let i = 0; i < landmarks.length; i++) {
-                            const [x, y, z] = landmarks[i];
-                            const mirroredX = canvasElement.width - x;
-                            
-                            // ランドマークを描画
-                            ctx.beginPath();
-                            ctx.arc(mirroredX, y, 5, 0, 2 * Math.PI);
-                            ctx.fillStyle = handColor;
-                            ctx.fill();
-                            
-                            // 指とランドマークの名前を取得
-                            let fingerIndex = Math.floor(i / 4);
-                            let landmarkIndex = i % 4;
-                            
-                            if (i === 0) {
-                                // 手首のポイント
-                                fingerDataText += `手首: (${Math.round(x)}, ${Math.round(y)}, ${Math.round(z)})\n`;
-                            } else {
-                                // 指のポイント
-                                if (fingerIndex < fingerNames.length && landmarkIndex < landmarkNames.length) {
-                                    const fingerName = fingerNames[fingerIndex - 1];
-                                    const landmarkName = landmarkNames[landmarkIndex];
-                                    
-                                    if (landmarkIndex === 0) {
-                                        fingerDataText += `\n${fingerName}:\n`;
-                                    }
-                                    
-                                    fingerDataText += `  ${landmarkName}: (${Math.round(x)}, ${Math.round(y)}, ${Math.round(z)})\n`;
-                                }
-                            }
-                        }
-                        
-                        // 指を結ぶ線を描画
-                        ctx.lineWidth = 2;
-                        ctx.strokeStyle = lineColor;
-                        
-                        // 手首と指の付け根を結ぶ
-                        for (let i = 1; i <= 17; i += 4) {
-                            const [x0, y0] = landmarks[0];
-                            const [x1, y1] = landmarks[i];
-                            
-                            ctx.beginPath();
-                            ctx.moveTo(canvasElement.width - x0, y0);
-                            ctx.lineTo(canvasElement.width - x1, y1);
-                            ctx.stroke();
-                        }
-                        
-                        // 各指のランドマーク間の線を描画
-                        for (let i = 0; i < 5; i++) {
-                            for (let j = 0; j < 3; j++) {
-                                const idx1 = i * 4 + j + 1;
-                                const idx2 = i * 4 + j + 2;
-                                
-                                const [x1, y1] = landmarks[idx1];
-                                const [x2, y2] = landmarks[idx2];
-                                
-                                ctx.beginPath();
-                                ctx.moveTo(canvasElement.width - x1, y1);
-                                ctx.lineTo(canvasElement.width - x2, y2);
-                                ctx.stroke();
-                            }
-                        }
-                        
-                        // 指の付け根同士を結ぶ線を描画
-                        for (let i = 1; i < 17; i += 4) {
-                            if (i + 4 < landmarks.length) {
-                                const [x1, y1] = landmarks[i];
-                                const [x2, y2] = landmarks[i + 4];
-                                
-                                ctx.beginPath();
-                                ctx.moveTo(canvasElement.width - x1, y1);
-                                ctx.lineTo(canvasElement.width - x2, y2);
-                                ctx.stroke();
-                            }
-                        }
+                    if (isRightHand) {
+                        rightHands.push(hand);
+                    } else {
+                        leftHands.push(hand);
                     }
                 }
                 
-                fingerDataElement.textContent = fingerDataText;
+                // 右手が複数検出された場合は、最も信頼度の高い1つだけを使用
+                if (rightHands.length > 1) {
+                    rightHands.sort((a, b) => b.score - a.score);
+                    rightHands.splice(1);
+                }
+                
+                // 左手が複数検出された場合は、最も信頼度の高い1つだけを使用
+                if (leftHands.length > 1) {
+                    leftHands.sort((a, b) => b.score - a.score);
+                    leftHands.splice(1);
+                }
+                
+                // 検出された手の数に基づいてステータスを更新
+                if (detectedHandsCount === 0) {
+                    leftHandFingerDataText = '左手が検出されていません。カメラに手を映してください。';
+                    rightHandFingerDataText = '右手が検出されていません。カメラに手を映してください。';
+                    statusElement.textContent = '手が検出されていません...';
+                } else {
+                    const leftHandsText = leftHands.length > 0 ? '左手を検出' : '';
+                    const rightHandsText = rightHands.length > 0 ? '右手を検出' : '';
+                    const statusText = [leftHandsText, rightHandsText].filter(Boolean).join('、');
+                    statusElement.textContent = `${statusText}しました！`;
+                    
+                    // 左手のデータ表示
+                    if (leftHands.length === 0) {
+                        leftHandFingerDataText = '左手が検出されていません。カメラに左手を映してください。';
+                    } else {
+                        leftHandFingerDataText = '検出された左手の指の位置:\n';
+                        processHandLandmarks(leftHands[0], 'green', 'darkgreen', leftHandFingerDataText, true);
+                    }
+                    
+                    // 右手のデータ表示
+                    if (rightHands.length === 0) {
+                        rightHandFingerDataText = '右手が検出されていません。カメラに右手を映してください。';
+                    } else {
+                        rightHandFingerDataText = '検出された右手の指の位置:\n';
+                        processHandLandmarks(rightHands[0], 'red', 'darkred', rightHandFingerDataText, false);
+                    }
+                }
+                
+                // 各手のデータを別々のテキストボックスに表示
+                fingerDataLeftElement.textContent = leftHandFingerDataText;
+                fingerDataRightElement.textContent = rightHandFingerDataText;
                 
             } catch (error) {
                 console.error('手の検出中にエラーが発生しました:', error);
@@ -312,6 +290,101 @@
             
             // 次のフレームの検出をリクエスト
             requestAnimationFrame(detectHands);
+        }
+        
+        // ランドマークの処理を行う関数
+        function processHandLandmarks(hand, pointColor, lineColor, dataText, isLeftHand) {
+            const landmarks = hand.landmarks;
+            
+            // 各指のキーポイントを描画
+            for (let i = 0; i < landmarks.length; i++) {
+                const [x, y, z] = landmarks[i];
+                const mirroredX = canvasElement.width - x;
+                
+                // ランドマークを描画
+                ctx.beginPath();
+                ctx.arc(mirroredX, y, 5, 0, 2 * Math.PI);
+                ctx.fillStyle = pointColor;
+                ctx.fill();
+                
+                // 指とランドマークの名前を取得して表示データを構築
+                let fingerIndex = Math.floor(i / 4);
+                let landmarkIndex = i % 4;
+                
+                if (i === 0) {
+                    // 手首のポイント
+                    if (isLeftHand) {
+                        leftHandFingerDataText += `手首: (${Math.round(x)}, ${Math.round(y)}, ${Math.round(z)})\n`;
+                    } else {
+                        rightHandFingerDataText += `手首: (${Math.round(x)}, ${Math.round(y)}, ${Math.round(z)})\n`;
+                    }
+                } else {
+                    // 指のポイント
+                    if (fingerIndex < fingerNames.length && landmarkIndex < landmarkNames.length) {
+                        const fingerName = fingerNames[fingerIndex - 1];
+                        const landmarkName = landmarkNames[landmarkIndex];
+                        
+                        if (landmarkIndex === 0) {
+                            if (isLeftHand) {
+                                leftHandFingerDataText += `\n${fingerName}:\n`;
+                            } else {
+                                rightHandFingerDataText += `\n${fingerName}:\n`;
+                            }
+                        }
+                        
+                        const positionData = `  ${landmarkName}: (${Math.round(x)}, ${Math.round(y)}, ${Math.round(z)})\n`;
+                        if (isLeftHand) {
+                            leftHandFingerDataText += positionData;
+                        } else {
+                            rightHandFingerDataText += positionData;
+                        }
+                    }
+                }
+            }
+            
+            // 指を結ぶ線を描画
+            ctx.lineWidth = 2;
+            ctx.strokeStyle = lineColor;
+            
+            // 手首と指の付け根を結ぶ
+            for (let i = 1; i <= 17; i += 4) {
+                const [x0, y0] = landmarks[0];
+                const [x1, y1] = landmarks[i];
+                
+                ctx.beginPath();
+                ctx.moveTo(canvasElement.width - x0, y0);
+                ctx.lineTo(canvasElement.width - x1, y1);
+                ctx.stroke();
+            }
+            
+            // 各指のランドマーク間の線を描画
+            for (let i = 0; i < 5; i++) {
+                for (let j = 0; j < 3; j++) {
+                    const idx1 = i * 4 + j + 1;
+                    const idx2 = i * 4 + j + 2;
+                    
+                    const [x1, y1] = landmarks[idx1];
+                    const [x2, y2] = landmarks[idx2];
+                    
+                    ctx.beginPath();
+                    ctx.moveTo(canvasElement.width - x1, y1);
+                    ctx.lineTo(canvasElement.width - x2, y2);
+                    ctx.stroke();
+                }
+            }
+            
+            // 指の付け根同士を結ぶ線を描画
+            for (let i = 1; i < 17; i += 4) {
+                if (i + 4 < landmarks.length) {
+                    const [x1, y1] = landmarks[i];
+                    const [x2, y2] = landmarks[i + 4];
+                    
+                    ctx.beginPath();
+                    ctx.moveTo(canvasElement.width - x1, y1);
+                    ctx.lineTo(canvasElement.width - x2, y2);
+                    ctx.stroke();
+                }
+            }
         }
         
         // 開始ボタンのイベントリスナー
