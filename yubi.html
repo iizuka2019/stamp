@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>指の動き検知アプリ</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tensorflow/4.2.0/tf.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tensorflow-models/handpose/0.0.7/handpose.min.js"></script>
+    <style>
+        body {
+            font-family: 'Helvetica Neue', Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+        }
+        .container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 20px;
+        }
+        .video-container {
+            position: relative;
+            width: 640px;
+            height: 480px;
+            border: 3px solid #333;
+            border-radius: 8px;
+            overflow: hidden;
+            background-color: #000;
+        }
+        video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+        }
+        .controls {
+            display: flex;
+            gap: 10px;
+            margin-top: 10px;
+        }
+        button {
+            padding: 10px 20px;
+            background-color: #4285f4;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        button:hover {
+            background-color: #3367d6;
+        }
+        button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+        .status {
+            padding: 10px;
+            background-color: #fff;
+            border-radius: 4px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            text-align: center;
+            min-height: 20px;
+        }
+        .finger-data {
+            font-family: monospace;
+            background-color: #fff;
+            border-radius: 4px;
+            padding: 10px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            max-width: 640px;
+            width: 100%;
+            min-height: 100px;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+    </style>
+</head>
+<body>
+    <h1>指の動き検知アプリ</h1>
+    <div class="container">
+        <div class="status" id="status">カメラへのアクセスを許可してください...</div>
+        <div class="video-container">
+            <video id="video" playsinline></video>
+            <canvas id="canvas"></canvas>
+        </div>
+        <div class="controls">
+            <button id="start-btn">開始</button>
+            <button id="stop-btn" disabled>停止</button>
+        </div>
+        <div class="finger-data" id="finger-data">指の位置データがここに表示されます</div>
+    </div>
+
+    <script>
+        const videoElement = document.getElementById('video');
+        const canvasElement = document.getElementById('canvas');
+        const ctx = canvasElement.getContext('2d');
+        const startButton = document.getElementById('start-btn');
+        const stopButton = document.getElementById('stop-btn');
+        const statusElement = document.getElementById('status');
+        const fingerDataElement = document.getElementById('finger-data');
+        
+        let stream = null;
+        let handposeModel = null;
+        let isTracking = false;
+        let trackingInterval = null;
+        
+        // 指の名前の配列
+        const fingerNames = [
+            '親指',
+            '人差し指',
+            '中指',
+            '薬指',
+            '小指'
+        ];
+        
+        // 指のランドマークの名前
+        const landmarkNames = [
+            '付け根',
+            '第一関節',
+            '第二関節',
+            '指先'
+        ];
+        
+        // カメラの初期化
+        async function initCamera() {
+            try {
+                stream = await navigator.mediaDevices.getUserMedia({
+                    video: {
+                        facingMode: 'user',
+                        width: { ideal: 640 },
+                        height: { ideal: 480 }
+                    }
+                });
+                
+                videoElement.srcObject = stream;
+                
+                return new Promise((resolve) => {
+                    videoElement.onloadedmetadata = () => {
+                        videoElement.play();
+                        canvasElement.width = videoElement.videoWidth;
+                        canvasElement.height = videoElement.videoHeight;
+                        resolve();
+                    };
+                });
+            } catch (error) {
+                statusElement.textContent = `カメラの起動に失敗しました: ${error.message}`;
+                console.error('カメラの起動に失敗:', error);
+                throw error;
+            }
+        }
+        
+        // Handposeモデルの読み込み
+        async function loadHandposeModel() {
+            try {
+                statusElement.textContent = 'モデルを読み込み中...';
+                handposeModel = await handpose.load();
+                statusElement.textContent = 'モデルの読み込みが完了しました。開始ボタンを押して検出を開始してください。';
+                startButton.disabled = false;
+            } catch (error) {
+                statusElement.textContent = `モデルの読み込みに失敗しました: ${error.message}`;
+                console.error('Handposeモデルの読み込みに失敗:', error);
+            }
+        }
+        
+        // 手の検出と描画
+        async function detectHands() {
+            if (!isTracking) return;
+            
+            try {
+                const hands = await handposeModel.estimateHands(videoElement);
+                
+                // キャンバスをクリア
+                ctx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+                
+                // ビデオのミラーリング
+                ctx.save();
+                ctx.translate(canvasElement.width, 0);
+                ctx.scale(-1, 1);
+                ctx.drawImage(videoElement, 0, 0, canvasElement.width, canvasElement.height);
+                ctx.restore();
+                
+                let fingerDataText = '';
+                
+                if (hands.length > 0) {
+                    // 手のランドマークを描画
+                    const hand = hands[0];
+                    const landmarks = hand.landmarks;
+                    
+                    // 指のデータを構築
+                    fingerDataText = '検出された指の位置:\n';
+                    
+                    // まず、各指のキーポイントを描画
+                    for (let i = 0; i < landmarks.length; i++) {
+                        const [x, y, z] = landmarks[i];
+                        const mirroredX = canvasElement.width - x;
+                        
+                        // ランドマークを描画
+                        ctx.beginPath();
+                        ctx.arc(mirroredX, y, 5, 0, 2 * Math.PI);
+                        ctx.fillStyle = 'red';
+                        ctx.fill();
+                        
+                        // 指とランドマークの名前を取得
+                        let fingerIndex = Math.floor(i / 4);
+                        let landmarkIndex = i % 4;
+                        
+                        if (i === 0) {
+                            // 手首のポイント
+                            fingerDataText += `手首: (${Math.round(x)}, ${Math.round(y)}, ${Math.round(z)})\n`;
+                        } else {
+                            // 指のポイント
+                            if (fingerIndex < fingerNames.length && landmarkIndex < landmarkNames.length) {
+                                const fingerName = fingerNames[fingerIndex - 1];
+                                const landmarkName = landmarkNames[landmarkIndex];
+                                
+                                if (landmarkIndex === 0) {
+                                    fingerDataText += `\n${fingerName}:\n`;
+                                }
+                                
+                                fingerDataText += `  ${landmarkName}: (${Math.round(x)}, ${Math.round(y)}, ${Math.round(z)})\n`;
+                            }
+                        }
+                    }
+                    
+                    // 指を結ぶ線を描画
+                    ctx.lineWidth = 2;
+                    ctx.strokeStyle = 'blue';
+                    
+                    // 手首と指の付け根を結ぶ
+                    for (let i = 1; i <= 17; i += 4) {
+                        const [x0, y0] = landmarks[0];
+                        const [x1, y1] = landmarks[i];
+                        
+                        ctx.beginPath();
+                        ctx.moveTo(canvasElement.width - x0, y0);
+                        ctx.lineTo(canvasElement.width - x1, y1);
+                        ctx.stroke();
+                    }
+                    
+                    // 各指のランドマーク間の線を描画
+                    for (let i = 0; i < 5; i++) {
+                        for (let j = 0; j < 3; j++) {
+                            const idx1 = i * 4 + j + 1;
+                            const idx2 = i * 4 + j + 2;
+                            
+                            const [x1, y1] = landmarks[idx1];
+                            const [x2, y2] = landmarks[idx2];
+                            
+                            ctx.beginPath();
+                            ctx.moveTo(canvasElement.width - x1, y1);
+                            ctx.lineTo(canvasElement.width - x2, y2);
+                            ctx.stroke();
+                        }
+                    }
+                    
+                    // 指の付け根同士を結ぶ線を描画
+                    for (let i = 1; i < 17; i += 4) {
+                        if (i + 4 < landmarks.length) {
+                            const [x1, y1] = landmarks[i];
+                            const [x2, y2] = landmarks[i + 4];
+                            
+                            ctx.beginPath();
+                            ctx.moveTo(canvasElement.width - x1, y1);
+                            ctx.lineTo(canvasElement.width - x2, y2);
+                            ctx.stroke();
+                        }
+                    }
+                    
+                    statusElement.textContent = '手を検出しました！';
+                } else {
+                    fingerDataText = '手が検出されていません。カメラに手を映してください。';
+                    statusElement.textContent = '手が検出されていません...';
+                }
+                
+                fingerDataElement.textContent = fingerDataText;
+                
+            } catch (error) {
+                console.error('手の検出中にエラーが発生しました:', error);
+                statusElement.textContent = `検出エラー: ${error.message}`;
+            }
+            
+            // 次のフレームの検出をリクエスト
+            requestAnimationFrame(detectHands);
+        }
+        
+        // 開始ボタンのイベントリスナー
+        startButton.addEventListener('click', () => {
+            if (!isTracking) {
+                isTracking = true;
+                startButton.disabled = true;
+                stopButton.disabled = false;
+                statusElement.textContent = '検出を開始しました...';
+                detectHands();
+            }
+        });
+        
+        // 停止ボタンのイベントリスナー
+        stopButton.addEventListener('click', () => {
+            if (isTracking) {
+                isTracking = false;
+                startButton.disabled = false;
+                stopButton.disabled = true;
+                statusElement.textContent = '検出を停止しました。開始ボタンを押して再開できます。';
+            }
+        });
+        
+        // アプリの初期化
+        async function init() {
+            try {
+                await initCamera();
+                await loadHandposeModel();
+            } catch (error) {
+                console.error('アプリの初期化に失敗しました:', error);
+            }
+        }
+        
+        // アプリを起動
+        init();
+    </script>
+</body>
+</html>
