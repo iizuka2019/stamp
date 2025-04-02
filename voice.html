@@ -90,6 +90,35 @@
             margin-bottom: 5px;
             text-align: center;
         }
+        .loading {
+            color: #95a5a6;
+            font-style: italic;
+        }
+        .api-key-container {
+            margin-top: 20px;
+            padding: 15px;
+            background-color: #f8f9fa;
+            border-radius: 5px;
+            border: 1px solid #e9ecef;
+        }
+        .api-key-input {
+            width: 100%;
+            padding: 8px;
+            margin-top: 5px;
+            margin-bottom: 10px;
+            border: 1px solid #ced4da;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        .api-key-label {
+            font-weight: bold;
+        }
+        .save-key-button {
+            background-color: #28a745;
+        }
+        .save-key-button:hover {
+            background-color: #218838;
+        }
     </style>
 </head>
 <body>
@@ -111,6 +140,13 @@
                     <option value="ja-JP">日本語</option>
                 </select>
             </div>
+        </div>
+        
+        <div class="api-key-container">
+            <label for="openai-api-key" class="api-key-label">OpenAI APIキー:</label>
+            <input type="password" id="openai-api-key" class="api-key-input" placeholder="sk-..." />
+            <button id="save-api-key" class="save-key-button">保存</button>
+            <p>※APIキーは安全のためローカルに保存され、サーバーには送信されません。</p>
         </div>
         
         <div class="control-panel">
@@ -148,10 +184,41 @@
         let mediaRecorder;
         let audioChunks = [];
         
-        // 言語コードとGoogle翻訳APIの言語コードのマッピング
+        // OpenAI APIの設定
+        let OPENAI_API_KEY = localStorage.getItem('openai_api_key') || '';
+        const OPENAI_API_URL = 'https://api.openai.com/v1/chat/completions';
+        
+        // APIキー保存ボタンのイベントリスナー
+        document.getElementById('save-api-key').addEventListener('click', () => {
+            const apiKeyInput = document.getElementById('openai-api-key');
+            const apiKey = apiKeyInput.value.trim();
+            
+            if (apiKey) {
+                // APIキーをローカルストレージに保存
+                localStorage.setItem('openai_api_key', apiKey);
+                OPENAI_API_KEY = apiKey;
+                statusElement.textContent = 'APIキーが保存されました。';
+                setTimeout(() => {
+                    statusElement.textContent = '準備完了';
+                }, 2000);
+            } else {
+                statusElement.textContent = 'APIキーを入力してください。';
+            }
+        });
+        
+        // ページ読み込み時に保存されたAPIキーを表示
+        document.addEventListener('DOMContentLoaded', () => {
+            const savedApiKey = localStorage.getItem('openai_api_key');
+            if (savedApiKey) {
+                document.getElementById('openai-api-key').value = savedApiKey;
+                OPENAI_API_KEY = savedApiKey;
+            }
+        });
+        
+        // 言語コードとOpenAI APIの言語指定用のマッピング
         const languageMapping = {
-            'ja-JP': 'ja',
-            'en-US': 'en'
+            'ja-JP': 'Japanese',
+            'en-US': 'English'
         };
         
         // 言語選択の変更を同期する
@@ -281,38 +348,107 @@
             statusElement.textContent = '停止中';
         }
         
-        // テキストを翻訳する関数（モックアップ - 実際のプロジェクトでは適切なAPIに置き換える）
-        function translateText(text) {
-            // 実際のプロジェクトでは、ここで翻訳APIを呼び出す
-            // この例では、シンプルなデモのために疑似翻訳を使用
+        // OpenAI APIを使用してテキストを翻訳する関数
+        async function translateText(text) {
+            if (!text.trim()) return; // 空のテキストは翻訳しない
             
-            const sourceCode = languageMapping[sourceLanguageSelect.value];
-            const targetCode = languageMapping[targetLanguageSelect.value];
+            const sourceLanguage = languageMapping[sourceLanguageSelect.value];
+            const targetLanguage = languageMapping[targetLanguageSelect.value];
             
-            // モックの翻訳（実際のプロジェクトでは翻訳APIを使用）
-            let translatedText;
+            // 翻訳中であることを示す
+            const loadingElement = document.createElement('p');
+            loadingElement.textContent = '翻訳中...';
+            loadingElement.classList.add('loading');
+            translatedTranscript.appendChild(loadingElement);
+            translatedTranscript.scrollTop = translatedTranscript.scrollHeight;
             
-            if (sourceCode === 'ja' && targetCode === 'en') {
-                // 日本語から英語へのモック翻訳（実際のアプリではAPIを使用）
-                // 簡単な辞書ベースの置換（実際の翻訳ではなく例示目的）
-                translatedText = mockJapaneseToEnglish(text);
-            } else if (sourceCode === 'en' && targetCode === 'ja') {
-                // 英語から日本語へのモック翻訳
-                translatedText = mockEnglishToJapanese(text);
-            } else {
-                translatedText = `[${targetCode}に翻訳] ${text}`;
+            try {
+                // APIキーが設定されているか確認
+                if (!OPENAI_API_KEY) {
+                    throw new Error('OpenAI APIキーが設定されていません。APIキー入力欄にキーを入力して保存してください。');
+                }
+                
+                // OpenAI APIに送信するためのプロンプト
+                const prompt = `Translate the following text from ${sourceLanguage} to ${targetLanguage}. Provide only the translation without any explanations or notes:
+
+"${text}"`;
+                
+                // OpenAI APIへのリクエスト
+                const response = await fetch(OPENAI_API_URL, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${OPENAI_API_KEY}`
+                    },
+                    body: JSON.stringify({
+                        model: 'gpt-3.5-turbo', // または 'gpt-4' など、使用したいモデル
+                        messages: [
+                            {
+                                role: 'system',
+                                content: `You are a professional translator between ${sourceLanguage} and ${targetLanguage}. Translate the user's text accurately and naturally.`
+                            },
+                            {
+                                role: 'user',
+                                content: prompt
+                            }
+                        ],
+                        temperature: 0.3, // 低い温度で正確な翻訳を目指す
+                        max_tokens: 1000
+                    })
+                });
+                
+                // レスポンスの処理
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(`OpenAI API エラー: ${errorData.error?.message || 'Unknown error'}`);
+                }
+                
+                const data = await response.json();
+                const translatedText = data.choices[0]?.message?.content?.trim() || '翻訳エラー';
+                
+                // ローディング表示を削除
+                const loadingElements = translatedTranscript.querySelectorAll('.loading');
+                loadingElements.forEach(el => el.remove());
+                
+                // 翻訳結果を表示
+                appendToTranscript(translatedTranscript, translatedText);
+                
+            } catch (error) {
+                console.error('翻訳エラー:', error);
+                
+                // ローディング表示を削除
+                const loadingElements = translatedTranscript.querySelectorAll('.loading');
+                loadingElements.forEach(el => el.remove());
+                
+                // エラーメッセージを表示
+                appendToTranscript(translatedTranscript, `翻訳エラー: ${error.message}`);
+                
+                // APIキーが設定されていない場合は、フォールバックとしてモック翻訳を使用
+                if (error.message.includes('APIキー')) {
+                    // フォールバック翻訳（APIキーが設定されていない場合）
+                    fallbackTranslate(text, sourceLanguageSelect.value, targetLanguageSelect.value);
+                }
             }
-            
-            // 実際のアプリケーションでは、ここで適切な翻訳APIを呼び出す
-            // 例: Google Cloud Translation API、DeepL API、Microsoft Translator API など
-            
-            // 翻訳結果を表示
-            appendToTranscript(translatedTranscript, translatedText);
         }
         
-        // モックの日本語→英語翻訳（実際のアプリではAPIを使用）
+        // APIキーが設定されていない場合のフォールバックとしてモック翻訳を使用
+        function fallbackTranslate(text, sourceLanguageCode, targetLanguageCode) {
+            let translatedText;
+            
+            if (sourceLanguageCode === 'ja-JP' && targetLanguageCode === 'en-US') {
+                translatedText = mockJapaneseToEnglish(text);
+            } else if (sourceLanguageCode === 'en-US' && targetLanguageCode === 'ja-JP') {
+                translatedText = mockEnglishToJapanese(text);
+            } else {
+                translatedText = `[翻訳できませんでした] ${text}`;
+            }
+            
+            appendToTranscript(translatedTranscript, `[フォールバック翻訳] ${translatedText}`);
+        }
+        
+        // モックの日本語→英語翻訳（APIキーが設定されていない場合のフォールバック）
         function mockJapaneseToEnglish(text) {
-            // 簡単な辞書（実際のアプリではAPIを使用）
+            // 簡単な辞書（APIキーが設定されていない場合のフォールバック）
             const dictionary = {
                 'こんにちは': 'Hello',
                 'おはよう': 'Good morning',
@@ -328,22 +464,22 @@
             
             let translated = text;
             
-            // 単純な辞書ベースの置換（実際の翻訳ではなく例示目的）
+            // 単純な辞書ベースの置換（フォールバック用）
             Object.keys(dictionary).forEach(key => {
                 translated = translated.replace(new RegExp(key, 'g'), dictionary[key]);
             });
             
-            // 翻訳されていない場合は、モック翻訳であることを示す
+            // 翻訳されていない場合は、フォールバック翻訳であることを示す
             if (translated === text) {
-                return `[Translated to English] ${text}`;
+                return `[Fallback translation to English] ${text}`;
             }
             
             return translated;
         }
         
-        // モックの英語→日本語翻訳（実際のアプリではAPIを使用）
+        // モックの英語→日本語翻訳（APIキーが設定されていない場合のフォールバック）
         function mockEnglishToJapanese(text) {
-            // 簡単な辞書（実際のアプリではAPIを使用）
+            // 簡単な辞書（APIキーが設定されていない場合のフォールバック）
             const dictionary = {
                 'Hello': 'こんにちは',
                 'Good morning': 'おはよう',
@@ -359,7 +495,7 @@
             
             let translated = text;
             
-            // 単純な辞書ベースの置換（実際の翻訳ではなく例示目的）
+            // 単純な辞書ベースの置換（フォールバック用）
             Object.keys(dictionary).forEach(key => {
                 translated = translated.replace(new RegExp(key, 'gi'), match => {
                     // 大文字小文字を保持
@@ -367,9 +503,9 @@
                 });
             });
             
-            // 翻訳されていない場合は、モック翻訳であることを示す
+            // 翻訳されていない場合は、フォールバック翻訳であることを示す
             if (translated === text) {
-                return `[日本語に翻訳] ${text}`;
+                return `[日本語へのフォールバック翻訳] ${text}`;
             }
             
             return translated;
@@ -390,6 +526,11 @@
             if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
                 statusElement.textContent = 'お使いのブラウザは音声認識をサポートしていません。Chrome をお試しください。';
                 startButton.disabled = true;
+            }
+            
+            // APIキーが設定されているか確認
+            if (!OPENAI_API_KEY) {
+                statusElement.textContent = '警告: OpenAI APIキーが設定されていません。APIキーを入力して保存してください。モック翻訳が使用されます。';
             }
         });
     </script>
