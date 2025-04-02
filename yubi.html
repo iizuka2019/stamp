@@ -5,7 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>指の動き検知アプリ</title>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@3.20.0"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/handpose@0.0.7"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4.1646424915"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/hand-pose-detection@2.0.0"></script>
     <style>
         body {
             font-family: 'Helvetica Neue', Arial, sans-serif;
@@ -103,9 +104,9 @@
     <h1>指の動き検知アプリ</h1>
     <div class="container">
         <div class="status" id="status">カメラへのアクセスを許可してください...</div>
-    <div style="text-align: center; margin-bottom: 10px; font-size: 14px; color: #666;">
-        <p>※ 左手は緑色、右手は赤色で表示されます</p>
-    </div>
+        <div style="text-align: center; margin-bottom: 10px; font-size: 14px; color: #666;">
+            <p>※ 左手は緑色、右手は赤色で表示されます</p>
+        </div>
         <div class="video-container">
             <video id="video" playsinline></video>
             <canvas id="canvas"></canvas>
@@ -131,9 +132,8 @@
         const fingerDataRightElement = document.getElementById('finger-data-right');
         
         let stream = null;
-        let handposeModel = null;
+        let detector = null;
         let isTracking = false;
-        let trackingInterval = null;
         
         // 指の名前の配列
         const fingerNames = [
@@ -150,6 +150,79 @@
             '第一関節',
             '第二関節',
             '指先'
+        ];
+        
+        // MediaPipeのランドマークのインデックス
+        const HAND_LANDMARKS = {
+            WRIST: 0,
+            THUMB_CMC: 1,
+            THUMB_MCP: 2,
+            THUMB_IP: 3,
+            THUMB_TIP: 4,
+            INDEX_FINGER_MCP: 5,
+            INDEX_FINGER_PIP: 6,
+            INDEX_FINGER_DIP: 7,
+            INDEX_FINGER_TIP: 8,
+            MIDDLE_FINGER_MCP: 9,
+            MIDDLE_FINGER_PIP: 10,
+            MIDDLE_FINGER_DIP: 11,
+            MIDDLE_FINGER_TIP: 12,
+            RING_FINGER_MCP: 13,
+            RING_FINGER_PIP: 14,
+            RING_FINGER_DIP: 15,
+            RING_FINGER_TIP: 16,
+            PINKY_MCP: 17,
+            PINKY_PIP: 18,
+            PINKY_DIP: 19,
+            PINKY_TIP: 20
+        };
+        
+        // 各指のランドマークのインデックスをグループ化
+        const FINGER_LANDMARKS = {
+            THUMB: [HAND_LANDMARKS.THUMB_CMC, HAND_LANDMARKS.THUMB_MCP, HAND_LANDMARKS.THUMB_IP, HAND_LANDMARKS.THUMB_TIP],
+            INDEX: [HAND_LANDMARKS.INDEX_FINGER_MCP, HAND_LANDMARKS.INDEX_FINGER_PIP, HAND_LANDMARKS.INDEX_FINGER_DIP, HAND_LANDMARKS.INDEX_FINGER_TIP],
+            MIDDLE: [HAND_LANDMARKS.MIDDLE_FINGER_MCP, HAND_LANDMARKS.MIDDLE_FINGER_PIP, HAND_LANDMARKS.MIDDLE_FINGER_DIP, HAND_LANDMARKS.MIDDLE_FINGER_TIP],
+            RING: [HAND_LANDMARKS.RING_FINGER_MCP, HAND_LANDMARKS.RING_FINGER_PIP, HAND_LANDMARKS.RING_FINGER_DIP, HAND_LANDMARKS.RING_FINGER_TIP],
+            PINKY: [HAND_LANDMARKS.PINKY_MCP, HAND_LANDMARKS.PINKY_PIP, HAND_LANDMARKS.PINKY_DIP, HAND_LANDMARKS.PINKY_TIP]
+        };
+        
+        // 各指の連結パターン
+        const fingerConnections = [
+            // 親指
+            [HAND_LANDMARKS.WRIST, HAND_LANDMARKS.THUMB_CMC],
+            [HAND_LANDMARKS.THUMB_CMC, HAND_LANDMARKS.THUMB_MCP],
+            [HAND_LANDMARKS.THUMB_MCP, HAND_LANDMARKS.THUMB_IP],
+            [HAND_LANDMARKS.THUMB_IP, HAND_LANDMARKS.THUMB_TIP],
+            
+            // 人差し指
+            [HAND_LANDMARKS.WRIST, HAND_LANDMARKS.INDEX_FINGER_MCP],
+            [HAND_LANDMARKS.INDEX_FINGER_MCP, HAND_LANDMARKS.INDEX_FINGER_PIP],
+            [HAND_LANDMARKS.INDEX_FINGER_PIP, HAND_LANDMARKS.INDEX_FINGER_DIP],
+            [HAND_LANDMARKS.INDEX_FINGER_DIP, HAND_LANDMARKS.INDEX_FINGER_TIP],
+            
+            // 中指
+            [HAND_LANDMARKS.WRIST, HAND_LANDMARKS.MIDDLE_FINGER_MCP],
+            [HAND_LANDMARKS.MIDDLE_FINGER_MCP, HAND_LANDMARKS.MIDDLE_FINGER_PIP],
+            [HAND_LANDMARKS.MIDDLE_FINGER_PIP, HAND_LANDMARKS.MIDDLE_FINGER_DIP],
+            [HAND_LANDMARKS.MIDDLE_FINGER_DIP, HAND_LANDMARKS.MIDDLE_FINGER_TIP],
+            
+            // 薬指
+            [HAND_LANDMARKS.WRIST, HAND_LANDMARKS.RING_FINGER_MCP],
+            [HAND_LANDMARKS.RING_FINGER_MCP, HAND_LANDMARKS.RING_FINGER_PIP],
+            [HAND_LANDMARKS.RING_FINGER_PIP, HAND_LANDMARKS.RING_FINGER_DIP],
+            [HAND_LANDMARKS.RING_FINGER_DIP, HAND_LANDMARKS.RING_FINGER_TIP],
+            
+            // 小指
+            [HAND_LANDMARKS.WRIST, HAND_LANDMARKS.PINKY_MCP],
+            [HAND_LANDMARKS.PINKY_MCP, HAND_LANDMARKS.PINKY_PIP],
+            [HAND_LANDMARKS.PINKY_PIP, HAND_LANDMARKS.PINKY_DIP],
+            [HAND_LANDMARKS.PINKY_DIP, HAND_LANDMARKS.PINKY_TIP],
+            
+            // 指の付け根を結ぶ
+            [HAND_LANDMARKS.INDEX_FINGER_MCP, HAND_LANDMARKS.MIDDLE_FINGER_MCP],
+            [HAND_LANDMARKS.MIDDLE_FINGER_MCP, HAND_LANDMARKS.RING_FINGER_MCP],
+            [HAND_LANDMARKS.RING_FINGER_MCP, HAND_LANDMARKS.PINKY_MCP],
+            [HAND_LANDMARKS.THUMB_CMC, HAND_LANDMARKS.INDEX_FINGER_MCP]
         ];
         
         // カメラの初期化
@@ -180,23 +253,27 @@
             }
         }
         
-        // Handposeモデルの読み込み
-        async function loadHandposeModel() {
+        // 手の検出モデルの読み込み
+        async function loadHandDetector() {
             try {
                 statusElement.textContent = 'モデルを読み込み中...';
-                // 両手を検出するために適切なオプションを設定
-                const handposeOptions = {
-                    maxHands: 2,         // 最大2つの手を検出
-                    detectionConfidence: 0.6,  // 検出信頼度のしきい値
-                    iouThreshold: 0.3,    // 重複検出のしきい値
-                    scoreThreshold: 0.5   // スコアのしきい値
+                
+                // MediaPipe Handsモデルを使用
+                const model = handPoseDetection.SupportedModels.MediaPipeHands;
+                const detectorConfig = {
+                    runtime: 'tfjs',
+                    modelType: 'full',
+                    maxHands: 2,
+                    solutionPath: 'https://cdn.jsdelivr.net/npm/@mediapipe/hands'
                 };
-                handposeModel = await handpose.load(handposeOptions);
+                
+                detector = await handPoseDetection.createDetector(model, detectorConfig);
+                
                 statusElement.textContent = 'モデルの読み込みが完了しました。開始ボタンを押して検出を開始してください。';
                 startButton.disabled = false;
             } catch (error) {
                 statusElement.textContent = `モデルの読み込みに失敗しました: ${error.message}`;
-                console.error('Handposeモデルの読み込みに失敗:', error);
+                console.error('手の検出モデルの読み込みに失敗:', error);
             }
         }
         
@@ -205,8 +282,7 @@
             if (!isTracking) return;
             
             try {
-                // Handposeモデルに明示的にオプションを渡して、複数の手を検出できるようにする
-                const handsDetection = await handposeModel.estimateHands(videoElement);
+                const hands = await detector.estimateHands(videoElement, { flipHorizontal: false });
                 
                 // キャンバスをクリア
                 ctx.clearRect(0, 0, canvasElement.width, canvasElement.height);
@@ -218,70 +294,48 @@
                 ctx.drawImage(videoElement, 0, 0, canvasElement.width, canvasElement.height);
                 ctx.restore();
                 
-                let leftHandFingerDataText = '';
-                let rightHandFingerDataText = '';
-                let detectedHandsCount = handsDetection.length;
-                
-                // 左手と右手を分類
-                const leftHands = [];
-                const rightHands = [];
-                
-                for (const hand of handsDetection) {
-                    const landmarks = hand.landmarks;
-                    const wristX = landmarks[0][0];
-                    const thumbX = landmarks[4][0];
-                    const isRightHand = thumbX < wristX;
-                    
-                    if (isRightHand) {
-                        rightHands.push(hand);
-                    } else {
-                        leftHands.push(hand);
-                    }
-                }
-                
-                // 右手が複数検出された場合は、最も信頼度の高い1つだけを使用
-                if (rightHands.length > 1) {
-                    rightHands.sort((a, b) => b.score - a.score);
-                    rightHands.splice(1);
-                }
-                
-                // 左手が複数検出された場合は、最も信頼度の高い1つだけを使用
-                if (leftHands.length > 1) {
-                    leftHands.sort((a, b) => b.score - a.score);
-                    leftHands.splice(1);
-                }
+                // 左手と右手のデータテキスト初期化
+                let leftHandDataText = '';
+                let rightHandDataText = '';
                 
                 // 検出された手の数に基づいてステータスを更新
-                if (detectedHandsCount === 0) {
-                    leftHandFingerDataText = '左手が検出されていません。カメラに手を映してください。';
-                    rightHandFingerDataText = '右手が検出されていません。カメラに手を映してください。';
+                if (hands.length === 0) {
+                    leftHandDataText = '左手が検出されていません。カメラに手を映してください。';
+                    rightHandDataText = '右手が検出されていません。カメラに手を映してください。';
                     statusElement.textContent = '手が検出されていません...';
                 } else {
+                    const leftHands = hands.filter(hand => hand.handedness === 'Left');
+                    const rightHands = hands.filter(hand => hand.handedness === 'Right');
+                    
                     const leftHandsText = leftHands.length > 0 ? '左手を検出' : '';
                     const rightHandsText = rightHands.length > 0 ? '右手を検出' : '';
                     const statusText = [leftHandsText, rightHandsText].filter(Boolean).join('、');
                     statusElement.textContent = `${statusText}しました！`;
                     
-                    // 左手のデータ表示
-                    if (leftHands.length === 0) {
-                        leftHandFingerDataText = '左手が検出されていません。カメラに左手を映してください。';
+                    // 左手のデータと描画
+                    if (leftHands.length > 0) {
+                        const leftHand = leftHands[0];
+                        leftHandDataText = '検出された左手の指の位置:\n';
+                        drawHand(leftHand, 'green', 'darkgreen');
+                        leftHandDataText += getHandDataText(leftHand);
                     } else {
-                        leftHandFingerDataText = '検出された左手の指の位置:\n';
-                        processHandLandmarks(leftHands[0], 'green', 'darkgreen', leftHandFingerDataText, true);
+                        leftHandDataText = '左手が検出されていません。カメラに左手を映してください。';
                     }
                     
-                    // 右手のデータ表示
-                    if (rightHands.length === 0) {
-                        rightHandFingerDataText = '右手が検出されていません。カメラに右手を映してください。';
+                    // 右手のデータと描画
+                    if (rightHands.length > 0) {
+                        const rightHand = rightHands[0];
+                        rightHandDataText = '検出された右手の指の位置:\n';
+                        drawHand(rightHand, 'red', 'darkred');
+                        rightHandDataText += getHandDataText(rightHand);
                     } else {
-                        rightHandFingerDataText = '検出された右手の指の位置:\n';
-                        processHandLandmarks(rightHands[0], 'red', 'darkred', rightHandFingerDataText, false);
+                        rightHandDataText = '右手が検出されていません。カメラに右手を映してください。';
                     }
                 }
                 
-                // 各手のデータを別々のテキストボックスに表示
-                fingerDataLeftElement.textContent = leftHandFingerDataText;
-                fingerDataRightElement.textContent = rightHandFingerDataText;
+                // 各手のデータを表示
+                fingerDataLeftElement.textContent = leftHandDataText;
+                fingerDataRightElement.textContent = rightHandDataText;
                 
             } catch (error) {
                 console.error('手の検出中にエラーが発生しました:', error);
@@ -292,99 +346,77 @@
             requestAnimationFrame(detectHands);
         }
         
-        // ランドマークの処理を行う関数
-        function processHandLandmarks(hand, pointColor, lineColor, dataText, isLeftHand) {
-            const landmarks = hand.landmarks;
+        // 手を描画する関数
+        function drawHand(hand, pointColor, lineColor) {
+            const keypoints = hand.keypoints;
+            const handedness = hand.handedness;
             
-            // 各指のキーポイントを描画
-            for (let i = 0; i < landmarks.length; i++) {
-                const [x, y, z] = landmarks[i];
+            // キーポイントを描画
+            for (const point of keypoints) {
+                const { x, y } = point;
                 const mirroredX = canvasElement.width - x;
                 
-                // ランドマークを描画
                 ctx.beginPath();
                 ctx.arc(mirroredX, y, 5, 0, 2 * Math.PI);
                 ctx.fillStyle = pointColor;
                 ctx.fill();
-                
-                // 指とランドマークの名前を取得して表示データを構築
-                let fingerIndex = Math.floor(i / 4);
-                let landmarkIndex = i % 4;
-                
-                if (i === 0) {
-                    // 手首のポイント
-                    if (isLeftHand) {
-                        leftHandFingerDataText += `手首: (${Math.round(x)}, ${Math.round(y)}, ${Math.round(z)})\n`;
-                    } else {
-                        rightHandFingerDataText += `手首: (${Math.round(x)}, ${Math.round(y)}, ${Math.round(z)})\n`;
-                    }
-                } else {
-                    // 指のポイント
-                    if (fingerIndex < fingerNames.length && landmarkIndex < landmarkNames.length) {
-                        const fingerName = fingerNames[fingerIndex - 1];
-                        const landmarkName = landmarkNames[landmarkIndex];
-                        
-                        if (landmarkIndex === 0) {
-                            if (isLeftHand) {
-                                leftHandFingerDataText += `\n${fingerName}:\n`;
-                            } else {
-                                rightHandFingerDataText += `\n${fingerName}:\n`;
-                            }
-                        }
-                        
-                        const positionData = `  ${landmarkName}: (${Math.round(x)}, ${Math.round(y)}, ${Math.round(z)})\n`;
-                        if (isLeftHand) {
-                            leftHandFingerDataText += positionData;
-                        } else {
-                            rightHandFingerDataText += positionData;
-                        }
-                    }
-                }
             }
             
-            // 指を結ぶ線を描画
+            // 指の接続を描画
             ctx.lineWidth = 2;
             ctx.strokeStyle = lineColor;
             
-            // 手首と指の付け根を結ぶ
-            for (let i = 1; i <= 17; i += 4) {
-                const [x0, y0] = landmarks[0];
-                const [x1, y1] = landmarks[i];
+            for (const [start, end] of fingerConnections) {
+                const startPoint = keypoints[start];
+                const endPoint = keypoints[end];
                 
-                ctx.beginPath();
-                ctx.moveTo(canvasElement.width - x0, y0);
-                ctx.lineTo(canvasElement.width - x1, y1);
-                ctx.stroke();
-            }
-            
-            // 各指のランドマーク間の線を描画
-            for (let i = 0; i < 5; i++) {
-                for (let j = 0; j < 3; j++) {
-                    const idx1 = i * 4 + j + 1;
-                    const idx2 = i * 4 + j + 2;
-                    
-                    const [x1, y1] = landmarks[idx1];
-                    const [x2, y2] = landmarks[idx2];
+                if (startPoint && endPoint) {
+                    const mirroredStartX = canvasElement.width - startPoint.x;
+                    const mirroredEndX = canvasElement.width - endPoint.x;
                     
                     ctx.beginPath();
-                    ctx.moveTo(canvasElement.width - x1, y1);
-                    ctx.lineTo(canvasElement.width - x2, y2);
+                    ctx.moveTo(mirroredStartX, startPoint.y);
+                    ctx.lineTo(mirroredEndX, endPoint.y);
                     ctx.stroke();
                 }
             }
+        }
+        
+        // 手の位置データをテキストで取得する関数
+        function getHandDataText(hand) {
+            const keypoints = hand.keypoints;
+            let dataText = '';
             
-            // 指の付け根同士を結ぶ線を描画
-            for (let i = 1; i < 17; i += 4) {
-                if (i + 4 < landmarks.length) {
-                    const [x1, y1] = landmarks[i];
-                    const [x2, y2] = landmarks[i + 4];
-                    
-                    ctx.beginPath();
-                    ctx.moveTo(canvasElement.width - x1, y1);
-                    ctx.lineTo(canvasElement.width - x2, y2);
-                    ctx.stroke();
+            // 手首のデータ
+            const wrist = keypoints[HAND_LANDMARKS.WRIST];
+            dataText += `手首: (${Math.round(wrist.x)}, ${Math.round(wrist.y)}, 0)\n\n`;
+            
+            // 各指のデータ
+            for (let i = 0; i < fingerNames.length; i++) {
+                const fingerName = fingerNames[i];
+                dataText += `${fingerName}:\n`;
+                
+                // 各指のランドマークに対応するインデックスを取得
+                let landmarkIndices;
+                switch (i) {
+                    case 0: landmarkIndices = FINGER_LANDMARKS.THUMB; break;
+                    case 1: landmarkIndices = FINGER_LANDMARKS.INDEX; break;
+                    case 2: landmarkIndices = FINGER_LANDMARKS.MIDDLE; break;
+                    case 3: landmarkIndices = FINGER_LANDMARKS.RING; break;
+                    case 4: landmarkIndices = FINGER_LANDMARKS.PINKY; break;
                 }
+                
+                // 各関節のデータを追加
+                for (let j = 0; j < landmarkIndices.length; j++) {
+                    const landmarkName = landmarkNames[j];
+                    const point = keypoints[landmarkIndices[j]];
+                    dataText += `  ${landmarkName}: (${Math.round(point.x)}, ${Math.round(point.y)}, 0)\n`;
+                }
+                
+                dataText += '\n';
             }
+            
+            return dataText;
         }
         
         // 開始ボタンのイベントリスナー
@@ -412,7 +444,7 @@
         async function init() {
             try {
                 await initCamera();
-                await loadHandposeModel();
+                await loadHandDetector();
             } catch (error) {
                 console.error('アプリの初期化に失敗しました:', error);
             }
