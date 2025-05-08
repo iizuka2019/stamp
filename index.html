@@ -4,6 +4,10 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>高嶺ルビースタンプラリー</title>
+  <!-- Google Fonts (Noto Sans JP) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700&display=swap" rel="stylesheet">
   <!-- LeafletのCSS -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
   <!-- MarkerCluster CSS -->
@@ -15,31 +19,35 @@
   <script src="https://www.gstatic.com/firebasejs/9.21.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.21.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.21.0/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.21.0/firebase-storage-compat.js"></script> <!-- Firebase Storage SDK追加 -->
 </head>
 <body>
   <header>
     <button id="menuToggle" onclick="openMenu()">☰</button>
-    <button id="locateBtn" onclick="locateUser()">現在地表示</button>
     <h1>高嶺ルビースタンプラリー</h1>
     <p>全国の城・城址を巡ってスタンプを集めよう！</p>
-    <div id="loginStatus" style="margin-top:10px;">未ログイン</div>
+    <div id="loginStatus">未ログイン</div>
+    <button id="locateBtn" onclick="locateUser()">現在地へ</button>
   </header>
 
   <!-- ハンバーガーメニュー -->
   <div id="hamburgerMenu">
-    <button id="menuClose" onclick="closeMenu()">×</button>
-    <h2>ユーザー認証</h2>
+    <button id="menuClose" onclick="closeMenu()" class="modal-close">×</button> <!-- modal-closeクラス流用 -->
+    <h2>ユーザー情報</h2>
     <div id="authForm" class="auth-form">
-      <input type="text" id="signupName" placeholder="氏名（新規登録）">
-      <input type="email" id="signupEmail" placeholder="メールアドレス（新規登録）">
-      <input type="password" id="signupPassword" placeholder="パスワード（新規登録）">
+      <h3>新規登録</h3>
+      <input type="text" id="signupName" placeholder="氏名" autocomplete="name">
+      <input type="email" id="signupEmail" placeholder="メールアドレス" autocomplete="email">
+      <input type="password" id="signupPassword" placeholder="パスワード (6文字以上)" autocomplete="new-password">
       <button onclick="新規登録()">新規登録</button>
-      <br>
-      <input type="email" id="loginEmail" placeholder="メールアドレス（ログイン）">
-      <input type="password" id="loginPassword" placeholder="パスワード（ログイン）">
+      
+      <h3 style="margin-top: 20px;">ログイン</h3>
+      <input type="email" id="loginEmail" placeholder="メールアドレス" autocomplete="email">
+      <input type="password" id="loginPassword" placeholder="パスワード" autocomplete="current-password">
       <button onclick="ログイン()">ログイン</button>
     </div>
     <button id="logoutBtn" onclick="ログアウト()" style="display:none;">ログアウト</button>
+    
     <!-- ランキング表示 -->
     <div id="rankingSection">
       <h2>ランキング</h2>
@@ -53,22 +61,31 @@
     <div id="pointsDisplay">総ポイント: 0</div>
     <h2>スタンプカード</h2>
     <div id="stampCard">
-      <!-- 50km圏内の城のみ表示 -->
+      <!-- スタンプカードのコンテンツはJSで生成されます -->
+      <p style="text-align:center;">スタンプ情報を読み込み中です...</p>
     </div>
   </div>
 
-  <footer>リリース更新日: 2025-03-14 17:27:00</footer>
+  <footer>
+    <p>© 2024 高嶺ルビースタンプラリー. All Rights Reserved.</p>
+    <p>リリース更新日: 2025-03-14 17:27:00 (表示用)</p>
+  </footer>
 
   <!-- LeafletとMarkerClusterのJS -->
   <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
   <script src="https://unpkg.com/leaflet.markercluster/dist/leaflet.markercluster.js"></script>
-  <!-- アプリケーションロジック -->
-  <script src="app.js"></script>
+  
+  <!-- アプリケーションロジック (読み込み順に注意) -->
+  <script src="firebase-config.js"></script>
+  <script src="globals.js"></script>
+  <script src="auth.js"></script>
+  <script src="map.js"></script>
+  <script src="stampCard.js"></script>
+  <!-- app.js は削除されました -->
 
-
-    <!-- 写真拡大用のモーダル -->
+  <!-- 写真拡大用のモーダル -->
   <div id="photoModal" class="photo-modal" onclick="closePhotoModal(event)">
-    <span id="modalClose" class="modal-close" onclick="closePhotoModal(event)">×</span>
+    <span class="modal-close" onclick="closePhotoModal(event)">×</span>
     <img id="modalImage" class="modal-image" alt="拡大画像">
   </div>
   
