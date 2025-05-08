@@ -1,27 +1,41 @@
 // map.js
 
-// 地図の初期化 (globals.jsで宣言されたmap, markersを使用)
-map = L.map('map').setView([36, 138], 5); // グローバル変数 map を初期化
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-  attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-}).addTo(map);
-markers = L.markerClusterGroup(); // グローバル変数 markers を初期化
-map.addLayer(markers);
+// DOMContentLoaded を待って地図を初期化
+document.addEventListener('DOMContentLoaded', () => {
+    // 地図の初期化 (globals.jsで宣言されたmap, markersを使用)
+    map = L.map('map').setView([36, 138], 5); // グローバル変数 map を初期化
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+    }).addTo(map);
+    markers = L.markerClusterGroup(); // グローバル変数 markers を初期化
+    map.addLayer(markers);
+
+    addCastleMarkers(); // マーカーを追加
+    initializeGeolocation(); // 位置情報取得を開始
+});
 
 
-// マーカーの追加
+// マーカーの追加 (この関数は DOMContentLoaded の外で定義し、中で呼び出す)
 function addCastleMarkers() {
+  if (!map || !markers) { // mapとmarkersが初期化されているか確認
+      console.warn("Map or markers not initialized yet for addCastleMarkers");
+      return;
+  }
   markers.clearLayers(); // 既存のマーカーをクリア
   castleSpots.forEach(spot => {
     let icon = spot.stamped ? stampedIcon : defaultIcon;
     let marker = L.marker([spot.lat, spot.lng], { icon: icon });
-    marker.bindPopup(`<b>${spot.name}</b><br>${spot.description.substring(0,50)}...`); // 簡単なポップアップ
-    spot.marker = marker; // spotオブジェクトにマーカーインスタンスを保持
+    marker.bindPopup(`<b>${spot.name}</b><br>${spot.description.substring(0,50)}...`);
+    spot.marker = marker;
     marker.on('click', function(){
-      map.setView([spot.lat, spot.lng], 15); // 少し引いたズームレベルに
+      map.setView([spot.lat, spot.lng], 15);
       highlightedSpotId = spot.id;
-      updateStampCard(); // クリックされたスポットをハイライト表示
-      // スクロールしてスタンプカードの項目を表示
+      // stampCard.js の updateStampCard を呼び出す
+      if (typeof updateStampCard === 'function') {
+        updateStampCard();
+      } else {
+        console.error("updateStampCard function is not defined.");
+      }
       const cardItem = document.getElementById("stamp-card-" + spot.id);
       if (cardItem) {
         cardItem.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -30,8 +44,6 @@ function addCastleMarkers() {
     markers.addLayer(marker);
   });
 }
-addCastleMarkers(); // 初期マーカー追加
-
 
 function locateUser() {
   if (userLocation) { 
@@ -58,6 +70,11 @@ function handlePosition(position) {
   let lng = position.coords.longitude;
   userLocation = L.latLng(lat, lng);
 
+  if (!map) { // mapが初期化されているか確認
+      console.warn("Map not initialized yet for handlePosition");
+      return;
+  }
+
   if (!currentLocationMarker) {
     currentLocationMarker = L.marker(userLocation, { icon: userIcon }).addTo(map);
     currentLocationMarker.bindPopup("あなたの現在地").openPopup();
@@ -82,11 +99,15 @@ function handlePosition(position) {
       fillColor: 'rgba(76, 175, 80, 0.1)', // さらに薄い色
       fillOpacity: opacities[index],
       weight: 1, // 線の太さ
-      // stroke: false // 線なしの場合
     }).addTo(map));
   });
 
-  updateStampCard(); // 位置情報更新後にスタンプカードも更新
+  // stampCard.js の updateStampCard を呼び出す
+  if (typeof updateStampCard === 'function') {
+    updateStampCard(); // 位置情報更新後にスタンプカードも更新
+  } else {
+    console.error("updateStampCard function is not defined.");
+  }
 }
 
 function handleError(error) {
@@ -105,12 +126,18 @@ function handleError(error) {
   }
   alert(message);
   // 位置情報が取得できない場合でもスタンプカードは表示する
-  updateStampCard();
+  if (typeof updateStampCard === 'function') {
+    updateStampCard();
+  }
 }
 
 
 // 初回の位置情報取得と継続的な監視
 function initializeGeolocation() {
+    if (!map) { // mapが初期化されているか確認
+        console.warn("Map not initialized yet for initializeGeolocation");
+        return;
+    }
     if (navigator.geolocation) {
         // 初回取得
         navigator.geolocation.getCurrentPosition(handlePosition, handleError, { 
@@ -122,11 +149,8 @@ function initializeGeolocation() {
         // navigator.geolocation.watchPosition(handlePosition, handleError, { enableHighAccuracy: true });
     } else {
         alert("お使いのブラウザは位置情報サービスに対応していません。");
-        updateStampCard(); // 位置情報なしでもカードは表示
+        if (typeof updateStampCard === 'function') {
+            updateStampCard(); // 位置情報なしでもカードは表示
+        }
     }
 }
-
-// DOM読み込み後にGeolocation初期化
-document.addEventListener('DOMContentLoaded', () => {
-    initializeGeolocation();
-});
