@@ -7,7 +7,6 @@ function uploadPhoto(spot, file) {
     alert("写真アップロードにはログインが必要です。");
     return Promise.reject("Not logged in");
   }
-  // ユニークなファイル名生成（ユーザーID/スポットID/タイムスタンプ_元のファイル名）
   const filePath = `castlePhotos/${user.uid}/${spot.id}/${Date.now()}_${file.name}`;
   const fileRef = storage.ref().child(filePath);
 
@@ -29,36 +28,47 @@ function uploadPhoto(spot, file) {
 
 
 function updateStampCard() {
+  console.log("updateStampCard called. User location:", userLocation, "Total spots from global:", castleSpots.length);
   let stampCardContainer = document.getElementById('stampCard');
+  if (!stampCardContainer) {
+      console.error("Stamp card container not found!");
+      return;
+  }
   stampCardContainer.innerHTML = ""; // コンテナをクリア
   let groups = {};
+  let spotsAvailable = false;
+
+
+  if (!castleSpots || castleSpots.length === 0) {
+      stampCardContainer.innerHTML = "<p style='text-align:center;'>城データがまだ読み込まれていません。少々お待ちください...</p>";
+      // データ読み込みを促すか、リトライ処理を検討
+      // もし map.js の loadCastleSpotsFromFirestore がまだ終わっていない場合、この状態になる可能性がある
+      // 再度 loadCastleSpotsFromFirestore を呼び出すか、それが完了するのを待つ仕組みが必要かもしれない
+      // (ただし、通常は map.js の初期化フローで解決されるはず)
+      console.warn("castleSpots array is empty or not yet loaded in updateStampCard.");
+      return;
+  }
 
   castleSpots.forEach(spot => {
-    // isWithinRange のチェックはここでは行わず、ボタンの有効/無効制御に使う
-    // if (isWithinRange(spot.lat, spot.lng)) { 
-      let pref = spot.prefecture || "その他";
-      if (!groups[pref]) groups[pref] = [];
-      groups[pref].push(spot);
-    // }
+    let pref = spot.prefecture || "その他";
+    if (!groups[pref]) groups[pref] = [];
+    groups[pref].push(spot);
   });
-
-  // 都道府県の表示順を固定したい場合は、キーの配列を定義してソートする
-  // const prefectureOrder = ["東京都", "神奈川県", ... , "その他"];
-  // Object.keys(groups).sort((a,b) => prefectureOrder.indexOf(a) - prefectureOrder.indexOf(b)).forEach(pref => { ... });
   
   for (let pref in groups) {
-    if (groups[pref].length === 0) continue; // スポットがない場合はスキップ
+    if (groups[pref].length === 0) continue;
+    spotsAvailable = true;
 
     let groupDiv = document.createElement('div');
     groupDiv.className = "prefecture-group";
     
-    let title = document.createElement('h2'); // h2に変更
+    let title = document.createElement('h2');
     title.className = "prefecture-title";
     title.innerText = pref;
     groupDiv.appendChild(title);
     
     let cardInnerContainer = document.createElement('div');
-    cardInnerContainer.className = "stamp-card"; // stamp-card は内側のコンテナ名として使用
+    cardInnerContainer.className = "stamp-card";
 
     groups[pref].forEach(spot => {
       let stampItem = document.createElement('div');
@@ -69,38 +79,42 @@ function updateStampCard() {
       }
 
       let contentHTML = `<h3>${spot.name}</h3>`;
-      if (spot.defaultImage) {
-        contentHTML += `<img src="${spot.defaultImage}" alt="${spot.name}のデフォルト画像" class="default-image">`;
+
+      // 画像表示ロジック: アップロード写真があればそれを優先、なければdefaultImage
+      // ギャラリーで全アップロード写真を表示するため、ここではメイン画像を1枚だけ表示する形にはしない。
+      // defaultImageのみ表示し、ギャラリーは別途追加する。
+      if (!(spot.uploadedPhotos && spot.uploadedPhotos.length > 0) && spot.defaultImage) {
+          contentHTML += `<img src="${spot.defaultImage}" alt="${spot.name}のデフォルト画像" class="default-image">`;
       }
-      contentHTML += `<p class="castle-description">${spot.description}</p>`;
+      
+      contentHTML += `<p class="castle-description">${spot.description || '説明がありません。'}</p>`; // 説明がない場合のフォールバック
       
       if (spot.stamped && spot.stampTime) {
-        contentHTML += `<p class="stamp-time">獲得日時: ${spot.stampTime.toLocaleString("ja-JP")}</p>`;
+        contentHTML += `<p class="stamp-time">獲得日時: ${new Date(spot.stampTime).toLocaleString("ja-JP")}</p>`;
       }
       stampItem.innerHTML = contentHTML;
       
-      // 写真ギャラリー
-      let galleryDiv = document.createElement('div');
-      galleryDiv.className = "photo-gallery";
-      if (!spot.uploadedPhotos) spot.uploadedPhotos = []; // 初期化
-
-      spot.uploadedPhotos.forEach(photoUrl => {
-        let img = document.createElement('img');
-        img.src = photoUrl;
-        img.className = "uploaded-photo";
-        img.alt = `${spot.name} の写真`;
-        img.onclick = () => openPhotoModal(photoUrl);
-        galleryDiv.appendChild(img);
-      });
-      stampItem.appendChild(galleryDiv);
+      // 写真ギャラリー (アップロードされた写真があれば表示)
+      if (spot.uploadedPhotos && spot.uploadedPhotos.length > 0) {
+        let galleryDiv = document.createElement('div');
+        galleryDiv.className = "photo-gallery";
+        spot.uploadedPhotos.forEach(photoUrl => {
+          let img = document.createElement('img');
+          img.src = photoUrl;
+          img.className = "uploaded-photo";
+          img.alt = `${spot.name} の写真`;
+          img.onclick = () => openPhotoModal(photoUrl);
+          galleryDiv.appendChild(img);
+        });
+        stampItem.appendChild(galleryDiv);
+      }
       
       let actionContainer = document.createElement('div');
-      actionContainer.className = 'action-container'; // スタイル付け用
+      actionContainer.className = 'action-container';
 
-      const inRange = userLocation && isWithinRange(spot.lat, spot.lng);
+      const inRange = userLocation && typeof isWithinRange === 'function' && isWithinRange(spot.lat, spot.lng);
 
       if (!spot.stamped) {
-        // スタンプボタン
         let stampBtn = document.createElement('button');
         stampBtn.className = 'stamp-button';
         stampBtn.innerText = "スタンプ取得";
@@ -110,7 +124,7 @@ function updateStampCard() {
         stampBtn.onclick = function() {
           if (!auth.currentUser) {
             alert("スタンプ取得にはログインが必要です。");
-            openMenu(); // メニューを開いてログインを促す
+            if(typeof openMenu === 'function') openMenu();
             return;
           }
           if (spot.stamped) {
@@ -118,82 +132,79 @@ function updateStampCard() {
             return;
           }
           spot.stamped = true;
-          spot.stampTime = new Date();
-          let pts = spot.points || 2; // デフォルト2ポイント
+          spot.stampTime = new Date(); // Dateオブジェクトを直接格納
+          let pts = spot.points || 2;
           totalPoints += pts;
           alert(spot.name + "のスタンプを獲得しました！ " + pts + "ポイント獲得");
           
           if(spot.marker) spot.marker.setIcon(stampedIcon);
           
           updatePointsDisplay();
-          updateStampCard(); // カード表示を即時更新
-          updateUserData(); // Firestore更新
+          updateStampCard(); 
+          updateUserData(); 
         };
         actionContainer.appendChild(stampBtn);
       } else {
         let obtainedBtn = document.createElement('button');
-        obtainedBtn.className = 'stamp-button stamped-btn'; // 別クラスでスタイル調整も可能
+        obtainedBtn.className = 'stamp-button stamped-btn';
         obtainedBtn.innerText = "獲得済み";
         obtainedBtn.disabled = true;
         actionContainer.appendChild(obtainedBtn);
       }
 
-
-      // 写真アップロードボタン
       let fileInputId = `file-upload-${spot.id}`;
       let fileInput = document.createElement('input');
       fileInput.type = "file";
       fileInput.accept = "image/*";
       fileInput.id = fileInputId;
-      fileInput.style.display = "none"; // input自体は隠す
+      fileInput.style.display = "none";
 
       let uploadLabel = document.createElement('label');
       uploadLabel.htmlFor = fileInputId;
-      uploadLabel.className = 'file-upload-label stamp-button'; // stamp-buttonのスタイルを流用
+      uploadLabel.className = 'file-upload-label stamp-button';
       uploadLabel.innerText = "写真アップロード";
-      if(!inRange) { // 圏外なら非活性に見せる（実際は押せるが、処理側で制御）
+      if(!inRange) {
         uploadLabel.style.backgroundColor = "#ccc";
         uploadLabel.style.cursor = "not-allowed";
         uploadLabel.title = "写真アップロードはスポットの50km圏内で行えます。";
       }
 
-
       fileInput.onchange = function(event) {
         if (!auth.currentUser) {
           alert("写真アップロードにはログインが必要です。");
-          openMenu();
+          if(typeof openMenu === 'function') openMenu();
           return;
         }
         if (!inRange) {
             alert("写真アップロードはスポットの50km圏内でのみ可能です。");
+            event.target.value = ''; // ファイル選択をリセット
             return;
         }
         const file = event.target.files[0];
         if (file) {
           uploadLabel.innerText = "アップロード中...";
-          uploadLabel.disabled = true;
+          uploadLabel.style.pointerEvents = "none"; // 連打防止
+          uploadLabel.style.opacity = "0.7";
+
           uploadPhoto(spot, file).then(downloadURL => {
             if (!spot.uploadedPhotos) spot.uploadedPhotos = [];
             spot.uploadedPhotos.push(downloadURL);
             
-            // 写真アップロードでポイント追加 (例: 1ポイント)
             let photoPoints = 1;
             totalPoints += photoPoints;
             alert(`${spot.name} の写真アップロードで ${photoPoints} ポイント獲得！`);
 
-            updateStampCard(); // UI更新
-            updateUserData(); // Firestore更新
+            updateStampCard(); 
+            updateUserData(); 
             updatePointsDisplay();
-            uploadLabel.innerText = "写真アップロード";
-            uploadLabel.disabled = false;
           }).catch(error => {
             console.error("Upload process failed for spot " + spot.id, error);
-            uploadLabel.innerText = "アップロード失敗";
-            // 数秒後にボタンテキストを戻すなど
-            setTimeout(() => {
-                uploadLabel.innerText = "写真アップロード";
-                uploadLabel.disabled = false;
-            }, 3000);
+            alert("写真のアップロードに失敗しました。");
+          }).finally(() => {
+            uploadLabel.innerText = "写真アップロード";
+            uploadLabel.style.pointerEvents = "auto";
+            uploadLabel.style.opacity = "1";
+            event.target.value = ''; // ファイル選択をリセット
           });
         }
       };
@@ -206,11 +217,17 @@ function updateStampCard() {
     groupDiv.appendChild(cardInnerContainer);
     stampCardContainer.appendChild(groupDiv);
   }
+  if (!spotsAvailable) {
+      stampCardContainer.innerHTML = "<p style='text-align:center;'>表示できる城がありません。地図を移動するか、範囲内に城があるか確認してください。</p>";
+  }
 }
 
 
 function updatePointsDisplay() {
-  document.getElementById('pointsDisplay').innerText = "総ポイント: " + totalPoints;
+  const pointsEl = document.getElementById('pointsDisplay');
+  if (pointsEl) {
+    pointsEl.innerText = "総ポイント: " + totalPoints;
+  }
 }
 
 function updateUserData() {
@@ -220,18 +237,18 @@ function updateUserData() {
     castleSpots.forEach(spot => { 
       stampStatuses[spot.id] = { 
         stamped: spot.stamped, 
-        stampTime: spot.stampTime ? spot.stampTime.toISOString() : null,
-        uploadedPhotos: spot.uploadedPhotos || [] // 写真URLの配列も保存
+        stampTime: spot.stampTime ? spot.stampTime.toISOString() : null, // FirestoreにはISO文字列で保存
+        uploadedPhotos: spot.uploadedPhotos || []
       }; 
     });
     db.collection("users").doc(user.uid).set({
-      displayName: user.displayName, // 念のためdisplayNameも更新
+      displayName: user.displayName,
       totalPoints: totalPoints,
       stampStatuses: stampStatuses
     }, { merge: true })
     .then(() => {
         console.log("User data successfully updated in Firestore for UID: ", user.uid);
-        loadRanking(); // ユーザーデータ更新後にランキングも再読み込み
+        loadRanking();
     })
     .catch((error) => {
         console.error("Error updating user data: ", error);
@@ -244,9 +261,9 @@ function updateUserData() {
 
 function loadRanking() {
   const rankingListEl = document.getElementById("rankingList");
-  if (!rankingListEl) return; // 要素がなければ何もしない
+  if (!rankingListEl) return;
 
-  rankingListEl.innerHTML = "ランキング読み込み中..."; // ローディング表示
+  rankingListEl.innerHTML = "ランキング読み込み中...";
   db.collection("users")
     .orderBy("totalPoints", "desc")
     .limit(10)
@@ -258,7 +275,6 @@ function loadRanking() {
       } else {
         querySnapshot.forEach((doc, index) => {
           const data = doc.data();
-          // displayName がない場合、フォールバックとして「名無しさん」などを表示
           const displayName = data.displayName || "名無しさん";
           html += `<div>${index + 1}. ${displayName} : ${data.totalPoints || 0}ポイント</div>`;
         });
@@ -276,33 +292,24 @@ function updatePointsDisplayAndStampCard() {
   updateStampCard();
 }
 
-// 写真を拡大表示するモーダルを開く関数
 function openPhotoModal(imageUrl) {
   const modal = document.getElementById("photoModal");
   const modalImage = document.getElementById("modalImage");
   if (modal && modalImage) {
     modalImage.src = imageUrl;
-    modal.classList.add("show"); // display:flex を適用
+    modal.classList.add("show");
   }
 }
 
-// モーダルを閉じる関数
 function closePhotoModal(event) {
   const modal = document.getElementById("photoModal");
-  // モーダル背景自体か、閉じるボタン（×）がクリックされた場合のみ閉じる
   if (modal && (event.target.id === "photoModal" || event.target.classList.contains("modal-close"))) {
-    modal.classList.remove("show"); // display:none に戻す
-    document.getElementById("modalImage").src = ""; // 画像ソースをクリア（メモリ解放の一助）
+    modal.classList.remove("show");
+    const modalImage = document.getElementById("modalImage");
+    if(modalImage) modalImage.src = ""; 
   }
 }
 
-
-// 初回表示更新 (DOMContentLoaded後の方が安全な場合もあるが、ここではグローバルスコープで実行)
-// DOMContentLoaded を待つ場合:
-// document.addEventListener('DOMContentLoaded', () => {
-//   updatePointsDisplayAndStampCard();
-//   loadRanking(); // 初回ランキング読み込み
-// });
-// グローバルスコープで実行する場合 (スクリプトがbodyの終端近くにあれば問題ないことが多い)
-updatePointsDisplayAndStampCard();
-// loadRanking(); // auth.onAuthStateChanged で呼ばれるため、ここでは不要な場合もある
+// 初回呼び出しは auth.js の onAuthStateChanged や map.js の DOMContentLoaded で制御されるため、
+// ここでの直接呼び出しは不要な場合が多い。
+// updatePointsDisplayAndStampCard(); 
