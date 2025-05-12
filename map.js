@@ -3,7 +3,6 @@
 async function loadCastleSpotsFromFirestore() {
     if (!db) {
         console.error("Firestore (db) is not initialized for loading castle spots.");
-        // globals.js の castleSpots が空のままになる
         return []; 
     }
     try {
@@ -12,7 +11,8 @@ async function loadCastleSpotsFromFirestore() {
         snapshot.forEach(doc => {
             const data = doc.data();
             spots.push({
-                id: data.id,
+                docId: doc.id, // ★ FirestoreドキュメントIDを保持
+                id: data.id,   // 既存の数値ID
                 name: data.name,
                 lat: data.lat,
                 lng: data.lng,
@@ -20,9 +20,10 @@ async function loadCastleSpotsFromFirestore() {
                 description: data.description,
                 defaultImage: data.defaultImage,
                 points: data.points,
-                stamped: false,
+                allUploadedPhotos: data.allUploadedPhotos || [], // ★ 追加: 全ユーザーの写真リスト
+                stamped: false, // ユーザー固有データは後でloadUserDataで設定
                 stampTime: null,
-                uploadedPhotos: [],
+                uploadedPhotos: [], // ユーザー固有データ (そのユーザーがアップロードしたもの)
                 marker: null
             });
         });
