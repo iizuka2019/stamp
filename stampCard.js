@@ -1,5 +1,31 @@
 // stampCard.js
 
+// スポットごとに投稿された全写真を読み込む関数
+function loadAllPhotosForSpot(spot) {
+  // すでに写真がロードされている場合はスキップ
+  if (spot.uploadedPhotos && spot.uploadedPhotos.length > 0) return Promise.resolve();
+  
+  return db.collection("spotPhotos")
+    .where("spotId", "==", spot.id)
+    .limit(10) // 表示する写真数を制限
+    .get()
+    .then(querySnapshot => {
+      if (querySnapshot.empty) return;
+      
+      if (!spot.uploadedPhotos) spot.uploadedPhotos = [];
+      
+      querySnapshot.forEach(doc => {
+        const photoData = doc.data();
+        if (photoData.photoUrl) {
+          spot.uploadedPhotos.push(photoData.photoUrl);
+        }
+      });
+    })
+    .catch(error => {
+      console.error(`スポット${spot.id}の写真読み込みエラー:`, error);
+    });
+}
+
 // Firebase Storage を利用した写真アップロード
 function uploadPhoto(spot, file) {
   const user = auth.currentUser;
@@ -12,22 +38,35 @@ function uploadPhoto(spot, file) {
 
   return fileRef.put(file)
     .then(snapshot => {
-      console.log('Uploaded a blob or file!', snapshot);
+      console.log('ファイルのアップロード完了!', snapshot);
       return snapshot.ref.getDownloadURL();
     })
     .then(downloadURL => {
-      console.log('File available at', downloadURL);
-      return downloadURL;
+      console.log('ファイルのURL:', downloadURL);
+      
+      // ユーザーデータに写真URLを追加
+      if (!spot.uploadedPhotos) spot.uploadedPhotos = [];
+      spot.uploadedPhotos.push(downloadURL);
+      
+      // 公開コレクションにも写真データを保存
+      return db.collection("spotPhotos").add({
+        spotId: spot.id,
+        userId: user.uid,
+        photoUrl: downloadURL,
+        uploadTime: firebase.firestore.FieldValue.serverTimestamp(),
+        spotName: spot.name
+      }).then(() => {
+        return downloadURL;
+      });
     })
     .catch(error => {
-      console.error("Upload failed:", error);
+      console.error("アップロード失敗:", error);
       alert("写真のアップロードに失敗しました: " + error.message);
       return Promise.reject(error);
     });
 }
 
-
-function updateStampCard() {
+async function updateStampCard() {
   console.log("updateStampCard called. User location:", userLocation, "Total spots from global:", castleSpots.length);
   let stampCardContainer = document.getElementById('stampCard');
   if (!stampCardContainer) {
@@ -38,7 +77,6 @@ function updateStampCard() {
   let groups = {};
   let spotsAvailable = false;
 
-
   if (!castleSpots || castleSpots.length === 0) {
       stampCardContainer.innerHTML = "<p style='text-align:center;'>城データがまだ読み込まれていません。少々お待ちください...</p>";
       // データ読み込みを促すか、リトライ処理を検討
@@ -48,6 +86,10 @@ function updateStampCard() {
       console.warn("castleSpots array is empty or not yet loaded in updateStampCard.");
       return;
   }
+
+  // 表示する前に各スポットの写真を読み込む
+  const photoLoadPromises = castleSpots.map(spot => loadAllPhotosForSpot(spot));
+  await Promise.all(photoLoadPromises);
 
   castleSpots.forEach(spot => {
     let pref = spot.prefecture || "その他";
@@ -81,8 +123,6 @@ function updateStampCard() {
       let contentHTML = `<h3>${spot.name}</h3>`;
 
       // 画像表示ロジック: アップロード写真があればそれを優先、なければdefaultImage
-      // ギャラリーで全アップロード写真を表示するため、ここではメイン画像を1枚だけ表示する形にはしない。
-      // defaultImageのみ表示し、ギャラリーは別途追加する。
       if (!(spot.uploadedPhotos && spot.uploadedPhotos.length > 0) && spot.defaultImage) {
           contentHTML += `<img src="${spot.defaultImage}" alt="${spot.name}のデフォルト画像" class="default-image">`;
       }
@@ -222,7 +262,6 @@ function updateStampCard() {
   }
 }
 
-
 function updatePointsDisplay() {
   const pointsEl = document.getElementById('pointsDisplay');
   if (pointsEl) {
@@ -257,7 +296,6 @@ function updateUserData() {
     console.log("User not logged in, cannot update user data.");
   }
 }
-
 
 function loadRanking() {
   const rankingListEl = document.getElementById("rankingList");
@@ -312,4 +350,4 @@ function closePhotoModal(event) {
 
 // 初回呼び出しは auth.js の onAuthStateChanged や map.js の DOMContentLoaded で制御されるため、
 // ここでの直接呼び出しは不要な場合が多い。
-// updatePointsDisplayAndStampCard(); 
+// updatePointsDisplayAndStampCard();
