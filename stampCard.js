@@ -7,9 +7,8 @@ function uploadPhoto(spot, file) {
     alert("写真アップロードにはログインが必要です。");
     return Promise.reject("Not logged in");
   }
-  // spot.id が数値の場合、FirestoreのドキュメントIDとして使用するために文字列に変換することが推奨される場合がある。
-  // ここでは spot.id が Firestore のドキュメント ID と互換性のある形式であると仮定する。
-  const filePath = `castlePhotos/${user.uid}/${spot.id}/${Date.now()}_${file.name}`;
+  // spot.docId は map.js で読み込まれた Firestore のドキュメントID (文字列) を想定
+  const filePath = `castlePhotos/${user.uid}/${spot.docId}/${Date.now()}_${file.name}`;
   const fileRef = storage.ref().child(filePath);
 
   return fileRef.put(file)
@@ -52,47 +51,46 @@ function updateStampCard() {
     if (!groups[pref]) groups[pref] = [];
     groups[pref].push(spot);
   });
-  
+
   for (let pref in groups) {
     if (groups[pref].length === 0) continue;
     spotsAvailable = true;
 
     let groupDiv = document.createElement('div');
     groupDiv.className = "prefecture-group";
-    
+
     let title = document.createElement('h2');
     title.className = "prefecture-title";
     title.innerText = pref;
     groupDiv.appendChild(title);
-    
+
     let cardInnerContainer = document.createElement('div');
     cardInnerContainer.className = "stamp-card";
 
     groups[pref].forEach(spot => {
       let stampItem = document.createElement('div');
+      // IDには数値の spot.id を使う（HTML要素のIDとして）
       stampItem.id = "stamp-card-" + spot.id;
       stampItem.className = 'stamp-item' + (spot.stamped ? ' stamped' : '');
-      if (spot.id === highlightedSpotId) { 
+      if (spot.id === highlightedSpotId) {
         stampItem.classList.add("highlight");
       }
 
       let contentHTML = `<h3>${spot.name}</h3>`;
 
-      // 1. デフォルト画像 (常に表示候補)
-      //    ただし、他のギャラリーとの兼ね合いで表示しないケースも考慮するなら条件追加
       if (spot.defaultImage) {
           contentHTML += `<img src="${spot.defaultImage}" alt="${spot.name}のデフォルト画像" class="default-image">`;
       }
-      
+
       contentHTML += `<p class="castle-description">${spot.description || '説明がありません。'}</p>`;
-      
+
       if (spot.stamped && spot.stampTime) {
         contentHTML += `<p class="stamp-time">獲得日時: ${new Date(spot.stampTime).toLocaleString("ja-JP")}</p>`;
       }
-      stampItem.innerHTML = contentHTML; // 基本情報を先に設定
-      
+      stampItem.innerHTML = contentHTML;
+
       // 2. ログインユーザー自身のアップロード写真ギャラリー (spot.uploadedPhotos)
-      const currentUser = auth.currentUser; // auth.jsからauthを参照
+      const currentUser = auth.currentUser;
       if (currentUser && spot.uploadedPhotos && spot.uploadedPhotos.length > 0) {
         let myPhotosGalleryDiv = document.createElement('div');
         myPhotosGalleryDiv.className = "photo-gallery my-photos-gallery";
@@ -112,7 +110,7 @@ function updateStampCard() {
       }
 
       // 3. みんなの投稿写真ギャラリー (spot.publicPhotoURLs)
-      // spot.publicPhotoURLs は map.js で Firestore の castleSpots ドキュメントからロードされると仮定
+      // ★★★ Firestore と map.js で読み込んだプロパティ名に合わせる ★★★
       const publicPhotos = spot.publicPhotoURLs || [];
       if (publicPhotos.length > 0) {
         let publicGalleryDiv = document.createElement('div');
@@ -131,7 +129,7 @@ function updateStampCard() {
         });
         stampItem.appendChild(publicGalleryDiv);
       }
-      
+
       let actionContainer = document.createElement('div');
       actionContainer.className = 'action-container';
 
@@ -143,7 +141,7 @@ function updateStampCard() {
         stampBtn.innerText = "スタンプ取得";
         stampBtn.disabled = !inRange;
         if (!inRange) stampBtn.title = "スタンプ取得はスポットの50km圏内で行えます。";
-        
+
         stampBtn.onclick = function() {
           if (!auth.currentUser) {
             alert("スタンプ取得にはログインが必要です。");
@@ -159,12 +157,12 @@ function updateStampCard() {
           let pts = spot.points || 2; // デフォルトポイントを設定
           totalPoints += pts;
           alert(spot.name + "のスタンプを獲得しました！ " + pts + "ポイント獲得");
-          
+
           if(spot.marker) spot.marker.setIcon(stampedIcon);
-          
+
           updatePointsDisplay();
-          updateStampCard(); 
-          updateUserData(); 
+          updateStampCard();
+          updateUserData();
         };
         actionContainer.appendChild(stampBtn);
       } else {
@@ -175,6 +173,7 @@ function updateStampCard() {
         actionContainer.appendChild(obtainedBtn);
       }
 
+      // IDには数値の spot.id を使う（HTML要素のIDとして）
       let fileInputId = `file-upload-${spot.id}`;
       let fileInput = document.createElement('input');
       fileInput.type = "file";
@@ -207,59 +206,72 @@ function updateStampCard() {
         const file = event.target.files[0];
         if (file) {
           uploadLabel.innerText = "アップロード中...";
-          uploadLabel.style.pointerEvents = "none"; 
+          uploadLabel.style.pointerEvents = "none";
           uploadLabel.style.opacity = "0.7";
 
           uploadPhoto(spot, file).then(downloadURL => {
-            // 1. ユーザー自身の写真リストに追加
+            // 1. ユーザー自身の写真リストに追加 (spot.uploadedPhotos)
             if (!spot.uploadedPhotos) spot.uploadedPhotos = [];
             spot.uploadedPhotos.push(downloadURL);
-            
-            // 2. FirestoreのcastleSpotsコレクションの該当ドキュメントのpublicPhotoURLsにも追加
-            // spot.id が数値の場合は文字列に変換する必要があるかもしれない。
-            // Firestore のドキュメントIDは通常文字列。
-            const spotDocId = spot.id.toString(); // IDを文字列に変換
-            const spotDocRef = db.collection("castleSpots").doc(spotDocId); 
-            
+
+            // 2. FirestoreのcastleSpotsコレクションのpublicPhotoURLsにも追加
+            //    spot.docId (FirestoreのドキュメントID) を使用
+            console.log("Attempting to update Firestore doc ID:", spot.docId); // デバッグ用ログ
+            if (!spot.docId) {
+                console.error("Firestore Document ID (spot.docId) is missing!");
+                alert("データの更新に失敗しました。(Document IDが見つかりません)");
+                return; // docId がないと更新できない
+            }
+            const spotDocRef = db.collection("castleSpots").doc(spot.docId);
+
+            // ★★★ Firestore のフィールド名を publicPhotoURLs に修正 ★★★
             spotDocRef.update({
                 publicPhotoURLs: firebase.firestore.FieldValue.arrayUnion(downloadURL)
             })
             .then(() => {
-                console.log(`Public photo URL added to Firestore for spot ${spotDocId}`);
-                // ローカルの spot.publicPhotoURLs も更新 (map.jsでの読み込みと一貫性のため)
+                // ★★★ ログメッセージも修正 ★★★
+                console.log(`Uploaded photo URL added to publicPhotoURLs in Firestore for spot ${spot.docId}`);
+                // ローカルの spot.publicPhotoURLs も更新 (表示の即時反映のため)
+                // ★★★ ローカルキャッシュのプロパティ名も publicPhotoURLs に修正 ★★★
                 if (!spot.publicPhotoURLs) {
                     spot.publicPhotoURLs = [];
                 }
                 if (!spot.publicPhotoURLs.includes(downloadURL)) {
                     spot.publicPhotoURLs.push(downloadURL);
                 }
+                // UI更新（publicPhotoURLs が更新されたことを反映）
+                // ここで updateStampCard を再度呼ぶことで、新しい写真が即座に「みんなの写真」に表示される
+                updateStampCard(); // ★ UIを再描画して「みんなの写真」に追加表示
             })
             .catch(err => {
-                console.error(`Error updating publicPhotoURLs in Firestore for spot ${spotDocId}:`, err);
-                // エラーが発生しても、ユーザー個人の写真アップロードとポイント付与は続行する
+                // ★★★ エラーメッセージも修正 ★★★
+                console.error(`Error updating publicPhotoURLs in Firestore for spot ${spot.docId}:`, err);
+                alert("写真リストの更新に失敗しました。:" + err.message);
+                // エラーが起きてもポイント付与やユーザーデータ更新は試みる
             });
 
             let photoPoints = 1; // 写真アップロードによるポイント
             totalPoints += photoPoints;
             alert(`${spot.name} の写真アップロードで ${photoPoints} ポイント獲得！`);
 
-            updateStampCard(); 
+            // updateStampCard(); // Firestore更新成功後に移動
             updateUserData(); // ユーザーのスタンプ状況（個人の写真リスト含む）と総ポイントを更新
             updatePointsDisplay();
           }).catch(error => {
             console.error("Upload process failed for spot " + spot.id, error);
-            // alert("写真のアップロードに失敗しました。"); // uploadPhoto内でもアラートが出るので重複を避ける
+            // uploadPhoto内でもアラートが出る場合があるので、ここでは出さないか、内容を調整
           }).finally(() => {
+            // UIの状態を元に戻す
             uploadLabel.innerText = "写真アップロード";
             uploadLabel.style.pointerEvents = "auto";
             uploadLabel.style.opacity = "1";
-            event.target.value = ''; 
+            event.target.value = ''; // ファイル選択をリセット
           });
         }
       };
       actionContainer.appendChild(fileInput);
       actionContainer.appendChild(uploadLabel);
-      
+
       stampItem.appendChild(actionContainer);
       cardInnerContainer.appendChild(stampItem);
     });
@@ -283,12 +295,14 @@ function updateUserData() {
   const user = auth.currentUser;
   if (user) {
     let stampStatuses = {};
-    castleSpots.forEach(spot => { 
-      stampStatuses[spot.id.toString()] = { // spot.idをキーにする場合、文字列化を検討
-        stamped: spot.stamped, 
+    castleSpots.forEach(spot => {
+      // stampStatuses のキーは spot.id (数値) でも spot.docId (文字列) でも良いが、一貫性が重要
+      // loadUserData と合わせる必要がある。ここでは spot.id を使う
+      stampStatuses[spot.id.toString()] = { // キーを文字列にするのが無難
+        stamped: spot.stamped,
         stampTime: spot.stampTime ? spot.stampTime.toISOString() : null,
         uploadedPhotos: spot.uploadedPhotos || [] // ユーザーがそのスポットにアップロードした写真のリスト
-      }; 
+      };
     });
     db.collection("users").doc(user.uid).set({
       displayName: user.displayName, // auth.jsの新規登録で設定される想定
