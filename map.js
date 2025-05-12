@@ -3,6 +3,7 @@
 async function loadCastleSpotsFromFirestore() {
     if (!db) {
         console.error("Firestore (db) is not initialized for loading castle spots.");
+        // globals.js の castleSpots が空のままになる
         return []; 
     }
     try {
