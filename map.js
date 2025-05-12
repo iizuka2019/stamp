@@ -4,15 +4,16 @@ async function loadCastleSpotsFromFirestore() {
     if (!db) {
         console.error("Firestore (db) is not initialized for loading castle spots.");
         // globals.js の castleSpots が空のままになる
-        return []; 
+        return [];
     }
     try {
+        // ID（数値）で並び替え
         const snapshot = await db.collection("castleSpots").orderBy("id").get();
         const spots = [];
         snapshot.forEach(doc => {
             const data = doc.data();
             spots.push({
-                docId: doc.id, // ★ FirestoreドキュメントIDを保持
+                docId: doc.id, // FirestoreドキュメントIDを保持
                 id: data.id,   // 既存の数値ID
                 name: data.name,
                 lat: data.lat,
@@ -21,7 +22,8 @@ async function loadCastleSpotsFromFirestore() {
                 description: data.description,
                 defaultImage: data.defaultImage,
                 points: data.points,
-                allUploadedPhotos: data.allUploadedPhotos || [], // ★ 追加: 全ユーザーの写真リスト
+                // ★★★ フィールド名を Firestore のデータ (publicPhotoURLs) に合わせる ★★★
+                publicPhotoURLs: data.publicPhotoURLs || [], // 全ユーザーの写真リスト
                 stamped: false, // ユーザー固有データは後でloadUserDataで設定
                 stampTime: null,
                 uploadedPhotos: [], // ユーザー固有データ (そのユーザーがアップロードしたもの)
@@ -45,10 +47,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     map.addLayer(markers);
 
     // Firestoreから城データを非同期で読み込み、グローバル変数を更新
-    castleSpots = await loadCastleSpotsFromFirestore(); 
+    castleSpots = await loadCastleSpotsFromFirestore();
 
-    addCastleMarkers(); 
-    initializeGeolocation(); 
+    addCastleMarkers();
+    initializeGeolocation();
 
     // castleSpots のロード後にスタンプカードを更新 (ユーザーデータはauth.jsでロード後に再度更新される)
     if (typeof updateStampCard === 'function') {
@@ -93,7 +95,7 @@ function addCastleMarkers() {
 }
 
 function locateUser() {
-  if (userLocation) { 
+  if (userLocation) {
     map.setView(userLocation, 15);
   } else {
     if (navigator.geolocation) {
@@ -107,6 +109,7 @@ function locateUser() {
 function isWithinRange(spotLat, spotLng) {
   if (!userLocation) return false;
   const spotLatLng = L.latLng(spotLat, spotLng);
+  // 50km = 50000 メートル
   return userLocation.distanceTo(spotLatLng) <= 50000;
 }
 
@@ -127,25 +130,28 @@ function handlePosition(position) {
   } else {
     currentLocationMarker.setLatLng(userLocation);
   }
-  
+
   map.setView(userLocation, 15);
 
+  // 既存のサークルを削除
   userCircles.forEach(circle => { map.removeLayer(circle); });
   userCircles = [];
 
-  const radii = [50000, 40000, 30000, 20000, 10000];
-  const opacities = [0.05, 0.06, 0.07, 0.08, 0.1];
+  // グラデーション風サークルを再描画
+  const radii = [50000, 40000, 30000, 20000, 10000]; // 半径(m)
+  const opacities = [0.05, 0.06, 0.07, 0.08, 0.1]; // 透明度
 
   radii.forEach((radius, index) => {
     userCircles.push(L.circle(userLocation, {
       radius: radius,
-      color: 'rgba(76, 175, 80, 0.3)',
-      fillColor: 'rgba(76, 175, 80, 0.1)',
+      color: 'rgba(76, 175, 80, 0.3)', // 緑色の輪郭線（薄め）
+      fillColor: 'rgba(76, 175, 80, 0.1)', // 緑色の塗りつぶし（さらに薄め）
       fillOpacity: opacities[index],
-      weight: 1,
+      weight: 1, // 輪郭線の太さ
     }).addTo(map));
   });
 
+  // 位置情報更新後にスタンプカードも更新（範囲内/外が変わる可能性があるため）
   if (typeof updateStampCard === 'function') {
     updateStampCard();
   }
@@ -166,8 +172,9 @@ function handleError(error) {
       break;
   }
   alert(message);
+  // 位置情報が取得できなくてもスタンプカードの表示は試みる
   if (typeof updateStampCard === 'function') {
-    updateStampCard(); // 位置情報エラーでもカードは更新試行
+    updateStampCard();
   }
 }
 
@@ -177,13 +184,17 @@ function initializeGeolocation() {
         return;
     }
     if (navigator.geolocation) {
-        navigator.geolocation.getCurrentPosition(handlePosition, handleError, { 
-            enableHighAccuracy: true,
-            timeout: 10000,
-            maximumAge: 0 
+        // 初期位置を取得
+        navigator.geolocation.getCurrentPosition(handlePosition, handleError, {
+            enableHighAccuracy: true, // 高精度を試みる
+            timeout: 10000, // 10秒でタイムアウト
+            maximumAge: 0 // キャッシュを使用しない
         });
+        // 位置情報の継続的な監視 (watchPosition) も必要に応じて追加可能
+        // navigator.geolocation.watchPosition(handlePosition, handleError, { enableHighAccuracy: true });
     } else {
         alert("お使いのブラウザは位置情報サービスに対応していません。");
+        // 位置情報が使えなくてもスタンプカードの表示は試みる
         if (typeof updateStampCard === 'function') {
             updateStampCard();
         }
