@@ -133,6 +133,7 @@
     </div>
 
     <!-- MediaPipe Hands -->
+    <!-- 以下のCDNスクリプトは、グローバルに `Hands` オブジェクトを提供します -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/mediapipe/0.7.5/hands_solution_simd_wasm_bin.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/mediapipe/0.7.5/hands_solution_packed_assets_loader.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/mediapipe/0.7.5/hands.js"></script>
@@ -146,12 +147,11 @@
         const stopBtn = document.getElementById('stopBtn');
         const statusDiv = document.getElementById('status');
         const loadingDiv = document.getElementById('loading');
-        const leftHandInfo = document.getElementById('leftHandInfo');
-        const rightHandInfo = document.getElementById('rightHandInfo');
+        const leftHandInfo = document.getElementById('leftHandInfo'); // ユーザーから見て左手
+        const rightHandInfo = document.getElementById('rightHandInfo'); // ユーザーから見て右手
         const leftHandGesture = document.getElementById('leftHandGesture');
         const rightHandGesture = document.getElementById('rightHandGesture');
         
-        // MediaPipe Hands設定
         let handsModel;
         let isModelReady = false;
         let isRunning = false;
@@ -160,80 +160,35 @@
         // MediaPipe Handsの読み込み
         async function loadModel() {
             try {
-                // 通常は以下のようにMediaPipeを初期化しますが、CDNの制約でモック実装に置き換えています
-                // handsModel = new mp.Hands({
-                //     locateFile: (file) => {
-                //         return `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`;
-                //     }
-                // });
-                
-                // モック実装（実際のMediaPipeは複雑なため、デモ用に簡易版を実装）
-                handsModel = {
-                    setOptions: (options) => { console.log('Hand options set:', options); },
-                    onResults: (callback) => { 
-                        handsModel.resultCallback = callback; 
-                    },
-                    send: ({ image }) => {
-                        // 手の検出をシミュレート
-                        setTimeout(() => {
-                            if (!isRunning) return;
-                            
-                            // ランダムに手を検出する確率
-                            const detectHands = Math.random() > 0.2;
-                            
-                            if (detectHands) {
-                                // 手の検出をシミュレート
-                                const landmarks1 = generateRandomHandLandmarks();
-                                const landmarks2 = Math.random() > 0.3 ? generateRandomHandLandmarks() : null;
-                                
-                                const results = {
-                                    image: image,
-                                    multiHandLandmarks: landmarks2 ? [landmarks1, landmarks2] : [landmarks1],
-                                    multiHandedness: landmarks2 ? 
-                                        [{ label: Math.random() > 0.5 ? 'Left' : 'Right' }, 
-                                         { label: Math.random() > 0.5 ? 'Left' : 'Right' }] : 
-                                        [{ label: Math.random() > 0.5 ? 'Left' : 'Right' }]
-                                };
-                                
-                                handsModel.resultCallback(results);
-                            } else {
-                                // 手が検出されなかった場合
-                                handsModel.resultCallback({
-                                    image: image,
-                                    multiHandLandmarks: [],
-                                    multiHandedness: []
-                                });
-                            }
-                        }, 100);
+                // ★★★ 修正点: 実際のMediaPipe Handsを初期化 ★★★
+                handsModel = new Hands({ // `Hands` はCDNの `hands.js` からグローバルに提供される
+                    locateFile: (file) => {
+                        // MediaPipeが必要とするWASMファイルなどのパスを指定
+                        // このCDN構成の場合、ファイルは同じベースパスにあると期待される
+                        console.log(`MediaPipe wants to locate: ${file}`);
+                        return `https://cdnjs.cloudflare.com/ajax/libs/mediapipe/0.7.5/${file}`;
                     }
-                };
+                });
+
+                // モデルのオプション設定や結果コールバックは、startDetection時、またはここで設定
+                handsModel.onResults((results) => {
+                    if (!isRunning) return; // 停止後に結果が届く場合があるのでチェック
+                    drawResults(results);
+                });
                 
                 isModelReady = true;
                 loadingDiv.style.display = 'none';
                 statusDiv.textContent = 'モデル準備完了！カメラを開始してください。';
-                startBtn.disabled = false;
+                startBtn.disabled = false; // モデル準備完了で開始ボタンを有効化
+
             } catch (error) {
                 console.error('モデルの読み込みに失敗しました:', error);
                 statusDiv.textContent = 'エラー: モデルの読み込みに失敗しました。';
-                loadingDiv.textContent = 'エラー: MediaPipeモデルを読み込めませんでした。';
+                loadingDiv.textContent = 'エラー: MediaPipeモデルを読み込めませんでした。コンソールで詳細を確認してください。';
             }
         }
         
-        // ランダムな手のランドマークを生成（シミュレーション用）
-        function generateRandomHandLandmarks() {
-            const landmarks = [];
-            // 21個の手の特徴点をシミュレート
-            for (let i = 0; i < 21; i++) {
-                landmarks.push({
-                    x: 0.1 + Math.random() * 0.8,
-                    y: 0.1 + Math.random() * 0.8,
-                    z: Math.random() * 0.5
-                });
-            }
-            return landmarks;
-        }
-        
-        // カメラのセットアップ
+        // カメラのセットアップ (変更なし)
         async function setupCamera() {
             if (!isModelReady) {
                 alert('モデルがまだ読み込まれていません。しばらくお待ちください。');
@@ -241,7 +196,6 @@
             }
             
             try {
-                // カメラへのアクセスを要求
                 stream = await navigator.mediaDevices.getUserMedia({
                     video: { 
                         width: { ideal: 1280 },
@@ -250,14 +204,11 @@
                     audio: false
                 });
                 
-                // ビデオ要素にストリームを設定
                 video.srcObject = stream;
                 
-                // ビデオが読み込まれたら再生開始
                 return new Promise((resolve) => {
                     video.onloadedmetadata = () => {
                         video.play();
-                        // キャンバスサイズをビデオに合わせる
                         canvas.width = video.videoWidth;
                         canvas.height = video.videoHeight;
                         resolve(video);
@@ -273,30 +224,26 @@
         // 手の検出を開始
         async function startDetection() {
             if (isRunning) return;
+            if (!isModelReady) { // 追加: モデルが準備できていない場合は何もしない
+                statusDiv.textContent = 'モデルの準備ができていません。しばらくお待ちください。';
+                return;
+            }
             isRunning = true;
             
             try {
-                // カメラのセットアップ
                 await setupCamera();
                 
-                // 手検出の設定
                 handsModel.setOptions({
-                    maxNumHands: 2,       // 最大2つの手を検出
-                    modelComplexity: 1,   // モデルの複雑さ (0-1)
+                    maxNumHands: 2,
+                    modelComplexity: 1,
                     minDetectionConfidence: 0.5,
                     minTrackingConfidence: 0.5
                 });
                 
-                // 結果の処理
-                handsModel.onResults((results) => {
-                    // キャンバスに描画
-                    drawResults(results);
-                });
+                // onResultsはloadModelで設定済みなのでここでは不要
                 
-                // 検出ループを開始
                 detectHands();
                 
-                // UIを更新
                 startBtn.disabled = true;
                 stopBtn.disabled = false;
                 statusDiv.textContent = '検出中...両手を画面に向けてください';
@@ -304,6 +251,7 @@
                 console.error('検出の開始に失敗しました:', error);
                 isRunning = false;
                 statusDiv.textContent = 'エラー: 検出の開始に失敗しました。';
+                stopDetection(); // エラー発生時は停止処理を呼ぶ
             }
         }
         
@@ -312,10 +260,10 @@
             if (!isRunning) return;
             
             try {
-                // 現在のビデオフレームを手検出モデルに送信
-                await handsModel.send({ image: video });
-                
-                // 次のフレームでも実行
+                // ★★★ 修正点: handsModel.send は Promise を返さないため await は不要 ★★★
+                if (video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) { // ビデオデータがあるか確認
+                   handsModel.send({ image: video });
+                }
                 requestAnimationFrame(detectHands);
             } catch (error) {
                 console.error('手の検出中にエラーが発生しました:', error);
@@ -326,96 +274,83 @@
         
         // 結果の描画
         function drawResults(results) {
-            // キャンバスをクリア
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             
-            // 検出された手を描画
+            let userLeftHandLandmarks = null;  // ユーザーから見て左手
+            let userRightHandLandmarks = null; // ユーザーから見て右手
+            
             if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
-                // 左手と右手の情報をリセット
-                let leftHand = null;
-                let rightHand = null;
-                
-                // 各手について処理
                 for (let i = 0; i < results.multiHandLandmarks.length; i++) {
                     const landmarks = results.multiHandLandmarks[i];
-                    const handedness = results.multiHandedness[i].label;
+                    const cameraHandedness = results.multiHandedness[i].label; // "Left" or "Right" (カメラから見た手)
                     
-                    // 手の種類に基づいて色を設定
-                    const color = handedness === 'Left' ? '#00FF00' : '#FF0000';
+                    // ★★★ 修正点: ミラー表示のため、ユーザー視点の左右に変換 ★★★
+                    const userHandedness = cameraHandedness === 'Left' ? 'Right' : 'Left';
                     
-                    // 手の特徴点を描画
+                    // ユーザーの左手を緑、右手を赤で描画
+                    const color = userHandedness === 'Left' ? '#00FF00' : '#FF0000'; 
+                    
                     drawHandLandmarks(landmarks, color);
                     
-                    // 手の種類に基づいて情報を保存
-                    if (handedness === 'Left') {
-                        leftHand = landmarks;
-                    } else {
-                        rightHand = landmarks;
+                    if (userHandedness === 'Left') {
+                        userLeftHandLandmarks = landmarks;
+                    } else { // userHandedness === 'Right'
+                        userRightHandLandmarks = landmarks;
                     }
                 }
-                
-                // 左手の情報を更新
-                if (leftHand) {
-                    const gesture = detectGesture(leftHand);
-                    leftHandInfo.textContent = `検出: ${leftHand.length}点`;
-                    leftHandGesture.textContent = `ジェスチャー: ${gesture}`;
-                } else {
-                    leftHandInfo.textContent = '未検出';
-                    leftHandGesture.textContent = 'ジェスチャー: なし';
-                }
-                
-                // 右手の情報を更新
-                if (rightHand) {
-                    const gesture = detectGesture(rightHand);
-                    rightHandInfo.textContent = `検出: ${rightHand.length}点`;
-                    rightHandGesture.textContent = `ジェスチャー: ${gesture}`;
-                } else {
-                    rightHandInfo.textContent = '未検出';
-                    rightHandGesture.textContent = 'ジェスチャー: なし';
-                }
+            }
+            
+            // 左手情報 (ユーザーから見て左手)
+            if (userLeftHandLandmarks) {
+                const gesture = detectGesture(userLeftHandLandmarks); // handednessは今のロジックでは不要
+                leftHandInfo.textContent = `検出: ${userLeftHandLandmarks.length}点`;
+                leftHandGesture.textContent = `ジェスチャー: ${gesture}`;
             } else {
-                // 手が検出されなかった場合
                 leftHandInfo.textContent = '未検出';
-                rightHandInfo.textContent = '未検出';
                 leftHandGesture.textContent = 'ジェスチャー: なし';
+            }
+            
+            // 右手情報 (ユーザーから見て右手)
+            if (userRightHandLandmarks) {
+                const gesture = detectGesture(userRightHandLandmarks); // handednessは今のロジックでは不要
+                rightHandInfo.textContent = `検出: ${userRightHandLandmarks.length}点`;
+                rightHandGesture.textContent = `ジェスチャー: ${gesture}`;
+            } else {
+                rightHandInfo.textContent = '未検出';
                 rightHandGesture.textContent = 'ジェスチャー: なし';
             }
         }
         
-        // 手のランドマークを描画
+        // 手のランドマークを描画 (変更なし)
         function drawHandLandmarks(landmarks, color) {
-            // 指の接続を定義
             const connections = [
-                // 親指
-                [0, 1], [1, 2], [2, 3], [3, 4],
-                // 人差し指
-                [0, 5], [5, 6], [6, 7], [7, 8],
-                // 中指
-                [0, 9], [9, 10], [10, 11], [11, 12],
-                // 薬指
-                [0, 13], [13, 14], [14, 15], [15, 16],
-                // 小指
-                [0, 17], [17, 18], [18, 19], [19, 20],
-                // 手のひら
-                [0, 5], [5, 9], [9, 13], [13, 17]
+                [0, 1], [1, 2], [2, 3], [3, 4], // 親指
+                [0, 5], [5, 6], [6, 7], [7, 8], // 人差し指 (線[0,5]は手首-指付根)
+                [0, 9], [9, 10], [10, 11], [11, 12], // 中指 (線[0,9]は手首-指付根)
+                [0, 13], [13, 14], [14, 15], [15, 16], // 薬指 (線[0,13]は手首-指付根)
+                [0, 17], [17, 18], [18, 19], [19, 20], // 小指 (線[0,17]は手首-指付根)
+                // 手のひら (MediaPipe標準とは少し異なるが、手首から各指の付け根、付け根同士)
+                [5, 9], [9, 13], [13, 17] // 指の付け根同士。場合によっては[17,0]で閉じることも
             ];
             
-            // 線を描画
             ctx.beginPath();
             ctx.lineWidth = 3;
             ctx.strokeStyle = color;
             
-            for (const [start, end] of connections) {
-                const startPoint = landmarks[start];
-                const endPoint = landmarks[end];
-                
-                ctx.moveTo(startPoint.x * canvas.width, startPoint.y * canvas.height);
-                ctx.lineTo(endPoint.x * canvas.width, endPoint.y * canvas.height);
+            for (const connection of connections) { // 修正: `connections`の各要素は配列なので、分割代入ではなく直接使う
+                const startIdx = connection[0];
+                const endIdx = connection[1];
+                // ランドマークが存在するかチェック (稀にインデックス外参照が起こる可能性を考慮)
+                if (landmarks[startIdx] && landmarks[endIdx]) {
+                    const startPoint = landmarks[startIdx];
+                    const endPoint = landmarks[endIdx];
+                    
+                    ctx.moveTo(startPoint.x * canvas.width, startPoint.y * canvas.height);
+                    ctx.lineTo(endPoint.x * canvas.width, endPoint.y * canvas.height);
+                }
             }
-            
             ctx.stroke();
             
-            // 点を描画
             for (const point of landmarks) {
                 ctx.beginPath();
                 ctx.fillStyle = color;
@@ -428,60 +363,97 @@
             }
         }
         
-        // ジェスチャーの検出（単純な例）
+        // ジェスチャーの検出（単純な例 - 変更なし、ただし改善の余地あり）
         function detectGesture(landmarks) {
-            // 指先のインデックス（親指, 人差し指, 中指, 薬指, 小指）
             const fingertips = [4, 8, 12, 16, 20];
-            // 指の第二関節のインデックス
-            const secondJoints = [3, 7, 11, 15, 19];
+            const secondJoints = [3, 7, 11, 15, 19]; // 親指はIP関節, 他はPIP関節に近い
             
-            // 指が伸びているかどうかをチェック
             let extendedFingers = 0;
-            for (let i = 1; i < fingertips.length; i++) { // 親指以外
+            // 人差し指から小指まで
+            for (let i = 1; i < fingertips.length; i++) { 
                 const fingertip = landmarks[fingertips[i]];
-                const secondJoint = landmarks[secondJoints[i]];
+                const pipJoint = landmarks[landmarks[0].y > landmarks[5].y ? fingertips[i]-1 : fingertips[i]-2]; // MCP関節 or PIP関節 (より手首に近い方)
+                const mcpJoint = landmarks[fingertips[i]-2] // MCP関節
                 
-                // 指先が第二関節よりも上にあれば、指は伸びていると判断
-                if (fingertip.y < secondJoint.y) {
-                    extendedFingers++;
+                // 指先がMCP関節よりも「上」にあれば伸びていると判断 (Y軸は下が正なので、Y座標が小さい)
+                if (fingertip.y < mcpJoint.y) {
+                     // さらに、指先がPIP関節よりも上なら確実に伸びている
+                    if (fingertip.y < pipJoint.y) {
+                         extendedFingers++;
+                    } else { 
+                        // 指先がPIPとMCPの間の場合、少し曲がっているが、ここでは伸ばしているとカウントする例
+                        // extendedFingers++; // 必要に応じて調整
+                    }
                 }
             }
             
-            // 親指のチェック（左右で異なる）
-            const thumb = landmarks[fingertips[0]];
-            const thumbJoint = landmarks[secondJoints[0]];
-            
-            // 親指が他の指から離れていれば伸びていると判断
-            if (Math.abs(thumb.x - thumbJoint.x) > 0.05) {
-                extendedFingers++;
+            // 親指のチェック
+            const thumbTip = landmarks[fingertips[0]]; // 4
+            const thumbIp = landmarks[secondJoints[0]]; // 3 (IP関節)
+            const thumbMcp = landmarks[2]; // MCP関節
+            const wrist = landmarks[0];
+
+            // 親指が伸びているか（他の指に比べて相対的にどうか、または手首からの角度など）
+            // 例: 親指の先端がIP関節より「上」かつ、IP関節がMCP関節より「上」
+            // または、親指の先端が人差し指の付け根(5)より横に離れているなど
+            // ここでは元のロジック（横への広がり）を維持しつつ、少し改善
+            // 親指の先端がIP関節よりy座標が小さい（上に伸びている）かつ、x座標も十分に離れている（開いている）
+            if (thumbTip.y < thumbIp.y && Math.abs(thumbTip.x - landmarks[5].x) > 0.04) { // landmarks[5]は人差し指の付け根
+                 extendedFingers++;
+            } else if (Math.abs(thumbTip.x - thumbIp.x) > 0.05) { // 元の横方向の広がり判定
+                 extendedFingers++;
+            }
+
+            if (extendedFingers === 5) return '開いた手 (パー)';
+            if (extendedFingers === 0) return '握りこぶし (グー)';
+            if (extendedFingers === 2) {
+                // 人差し指と中指が伸びているかチェック (ピースサイン)
+                const indexFingerTip = landmarks[8];
+                const indexFingerMcp = landmarks[5];
+                const middleFingerTip = landmarks[12];
+                const middleFingerMcp = landmarks[9];
+                if (indexFingerTip.y < indexFingerMcp.y && middleFingerTip.y < middleFingerMcp.y) {
+                     // 親指と小指が曲がっていることも確認するとより正確
+                    const pinkyTip = landmarks[20];
+                    const pinkyMcp = landmarks[17];
+                    if ( !(thumbTip.y < thumbIp.y) && !(pinkyTip.y < pinkyMcp.y)) { // 親指と小指が伸びていない
+                        return 'ピース';
+                    }
+                }
+            }
+            if (extendedFingers === 1) {
+                 // 人差し指だけが伸びているか (指差し)
+                const indexFingerTip = landmarks[8];
+                const indexFingerMcp = landmarks[5];
+                if (indexFingerTip.y < indexFingerMcp.y) {
+                    let otherFingersBent = true;
+                    for (let i = 2; i < fingertips.length; i++) { // 中指、薬指、小指
+                        if (landmarks[fingertips[i]].y < landmarks[fingertips[i]-2].y) {
+                            otherFingersBent = false;
+                            break;
+                        }
+                    }
+                    if (otherFingersBent && !(thumbTip.y < thumbIp.y) ) { // 親指も曲がっている
+                         return '指差し';
+                    }
+                }
             }
             
-            // ジェスチャーの判定
-            if (extendedFingers === 0) return '握りこぶし';
-            if (extendedFingers === 1) return '指差し';
-            if (extendedFingers === 2) return 'ピース';
-            if (extendedFingers === 3) return '3';
-            if (extendedFingers === 4) return '4';
-            if (extendedFingers === 5) return '開いた手';
-            
-            return '不明';
+            return `指 ${extendedFingers} 本`; // 不明な場合は伸ばした指の数を返す
         }
         
-        // 検出を停止
+        // 検出を停止 (変更なし)
         function stopDetection() {
             if (!isRunning) return;
             isRunning = false;
             
-            // ビデオストリームを停止
             if (stream) {
                 stream.getTracks().forEach(track => track.stop());
                 video.srcObject = null;
             }
             
-            // キャンバスをクリア
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             
-            // UIを更新
             startBtn.disabled = false;
             stopBtn.disabled = true;
             statusDiv.textContent = '停止しました';
@@ -491,11 +463,9 @@
             rightHandGesture.textContent = 'ジェスチャー: なし';
         }
         
-        // イベントリスナーを設定
         startBtn.addEventListener('click', startDetection);
         stopBtn.addEventListener('click', stopDetection);
         
-        // ページ読み込み時にモデルを読み込む
         window.addEventListener('load', loadModel);
     </script>
 </body>
