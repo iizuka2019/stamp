@@ -175,7 +175,73 @@
                     minTrackingConfidence: 0.5
                 });
                 
-                // 結果の処理
+                // 結果の処理関数を先に定義
+                function onResults(results) {
+                    // キャンバスをクリア
+                    ctx.clearRect(0, 0, canvas.width, canvas.height);
+                    
+                    // キャンバスに入力映像を描画
+                    ctx.save();
+                    ctx.drawImage(results.image, 0, 0, canvas.width, canvas.height);
+                    ctx.restore();
+                    
+                    // 検出された手を描画
+                    if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+                        // 左手と右手の情報をリセット
+                        let leftHand = null;
+                        let rightHand = null;
+                        
+                        // 各手について処理
+                        for (let i = 0; i < results.multiHandLandmarks.length; i++) {
+                            const landmarks = results.multiHandLandmarks[i];
+                            const handedness = results.multiHandedness[i].label;
+                            
+                            // 手の種類に基づいて色を設定
+                            const color = handedness === 'Left' ? '#00FF00' : '#FF0000';
+                            
+                            // 手の接続を描画
+                            drawConnectors(ctx, landmarks, HAND_CONNECTIONS, {color: color, lineWidth: 3});
+                            
+                            // 手の特徴点を描画
+                            drawLandmarks(ctx, landmarks, {color: color, lineWidth: 1, radius: 5});
+                            
+                            // 手の種類に基づいて情報を保存
+                            if (handedness === 'Left') {
+                                leftHand = landmarks;
+                            } else {
+                                rightHand = landmarks;
+                            }
+                        }
+                        
+                        // 左手の情報を更新
+                        if (leftHand) {
+                            const gesture = detectGesture(leftHand);
+                            leftHandInfo.textContent = `検出: ${leftHand.length}点`;
+                            leftHandGesture.textContent = `ジェスチャー: ${gesture}`;
+                        } else {
+                            leftHandInfo.textContent = '未検出';
+                            leftHandGesture.textContent = 'ジェスチャー: なし';
+                        }
+                        
+                        // 右手の情報を更新
+                        if (rightHand) {
+                            const gesture = detectGesture(rightHand);
+                            rightHandInfo.textContent = `検出: ${rightHand.length}点`;
+                            rightHandGesture.textContent = `ジェスチャー: ${gesture}`;
+                        } else {
+                            rightHandInfo.textContent = '未検出';
+                            rightHandGesture.textContent = 'ジェスチャー: なし';
+                        }
+                    } else {
+                        // 手が検出されなかった場合
+                        leftHandInfo.textContent = '未検出';
+                        rightHandInfo.textContent = '未検出';
+                        leftHandGesture.textContent = 'ジェスチャー: なし';
+                        rightHandGesture.textContent = 'ジェスチャー: なし';
+                    }
+                }
+                
+                // 結果処理関数を設定
                 hands.onResults(onResults);
                 
                 // カメラのセットアップ
