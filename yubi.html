@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>両手指認識ハンドジェスチャープロトタイプ</title>
     <style>
-        /* CSSは変更なし */
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             margin: 0;
@@ -103,12 +102,12 @@
         <h1>両手指認識ハンドジェスチャープロトタイプ</h1>
         
         <div class="controls">
-            <button id="startBtn" disabled>カメラ開始</button> <!-- 初期状態は無効化 -->
+            <button id="startBtn">カメラ開始</button>
             <button id="stopBtn" disabled>停止</button>
         </div>
         
         <div class="video-container">
-            <video id="video" playsinline style="display: none;"></video> <!-- camera_utilsが制御するので非表示でもOK -->
+            <video id="video" playsinline></video>
             <canvas id="canvas"></canvas>
         </div>
         
@@ -140,200 +139,310 @@
 
     <script>
         // DOM要素
-        const videoElement = document.getElementById('video');
-        const canvasElement = document.getElementById('canvas');
-        const canvasCtx = canvasElement.getContext('2d');
+        const video = document.getElementById('video');
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
         const startBtn = document.getElementById('startBtn');
         const stopBtn = document.getElementById('stopBtn');
         const statusDiv = document.getElementById('status');
         const loadingDiv = document.getElementById('loading');
-        const leftHandInfo = document.getElementById('leftHandInfo'); // ユーザーから見て左手
-        const rightHandInfo = document.getElementById('rightHandInfo'); // ユーザーから見て右手
+        const leftHandInfo = document.getElementById('leftHandInfo');
+        const rightHandInfo = document.getElementById('rightHandInfo');
         const leftHandGesture = document.getElementById('leftHandGesture');
         const rightHandGesture = document.getElementById('rightHandGesture');
         
-        let hands; // handsModel ではなく hands
+        // MediaPipe Hands設定
+        let handModel;
         let camera;
+        let isModelReady = false;
         let isRunning = false;
-        // `stream` 変数は camera_utils を使う場合、直接管理する必要は薄れます
-
-        function onResults(results) {
-            // キャンバスのサイズをビデオのサイズに合わせる (初回または変更時)
-            if (canvasElement.width !== results.image.width) {
-                canvasElement.width = results.image.width;
-            }
-            if (canvasElement.height !== results.image.height) {
-                canvasElement.height = results.image.height;
-            }
-
-            canvasCtx.save();
-            canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
-            
-            // 入力映像をキャンバスに描画 (ミラーリングされた映像が渡ってくる)
-            // canvasCtx.drawImage(results.image, 0, 0, canvasElement.width, canvasElement.height);
-
-            let userLeftHandLandmarks = null;
-            let userRightHandLandmarks = null;
-
-            if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
-                for (let i = 0; i < results.multiHandLandmarks.length; i++) {
-                    const landmarks = results.multiHandLandmarks[i];
-                    // camera_utils を使うと、results.image は既にミラーリングされている前提。
-                    // handedness もカメラから見た左右。
-                    // UI上の「左手」「右手」はユーザーから見たものなので、
-                    // CSSで video と canvas を transform: scaleX(-1) している場合、
-                    // MediaPipe の 'Left' がユーザーの右手、'Right' がユーザーの左手になる。
-                    const cameraHandedness = results.multiHandedness[i].label;
-                    const userHandedness = cameraHandedness === 'Left' ? 'Right' : 'Left';
-
-                    // 描画: ユーザーの左手を緑、右手を赤 (これはUI上の表示に合わせる)
-                    const drawColor = userHandedness === 'Left' ? '#00FF00' : '#FF0000';
-                    
-                    // drawing_utils を使用
-                    drawConnectors(canvasCtx, landmarks, HAND_CONNECTIONS, {color: drawColor, lineWidth: 3});
-                    drawLandmarks(canvasCtx, landmarks, {color: drawColor, lineWidth: 1, radius: 5});
-
-                    if (userHandedness === 'Left') {
-                        userLeftHandLandmarks = landmarks;
-                    } else { // userHandedness === 'Right'
-                        userRightHandLandmarks = landmarks;
-                    }
-                }
-            }
-
-            // 左手情報 (ユーザーから見て左手)
-            if (userLeftHandLandmarks) {
-                const gesture = detectGesture(userLeftHandLandmarks);
-                leftHandInfo.textContent = `検出: ${userLeftHandLandmarks.length}点`;
-                leftHandGesture.textContent = `ジェスチャー: ${gesture}`;
-            } else {
-                leftHandInfo.textContent = '未検出';
-                leftHandGesture.textContent = 'ジェスチャー: なし';
+        let stream;
+        
+        // HAND_CONNECTIONSの定義 (MediaPipeのHAND_CONNECTIONSが利用できない場合用)
+        const HAND_CONNECTIONS = [
+            [0, 1], [1, 2], [2, 3], [3, 4], // 親指
+            [0, 5], [5, 6], [6, 7], [7, 8], // 人差し指
+            [0, 9], [9, 10], [10, 11], [11, 12], // 中指
+            [0, 13], [13, 14], [14, 15], [15, 16], // 薬指
+            [0, 17], [17, 18], [18, 19], [19, 20], // 小指
+            [0, 5], [5, 9], [9, 13], [13, 17] // 手のひら
+        ];
+        
+        // 描画ユーティリティ関数（MediaPipeの関数がない場合のフォールバック）
+        function drawConnectors(ctx, landmarks, connections, options) {
+            // MediaPipeのdrawConnectors関数が利用可能ならそれを使う
+            if (window.drawConnectors) {
+                window.drawConnectors(ctx, landmarks, connections, options);
+                return;
             }
             
-            // 右手情報 (ユーザーから見て右手)
-            if (userRightHandLandmarks) {
-                const gesture = detectGesture(userRightHandLandmarks);
-                rightHandInfo.textContent = `検出: ${userRightHandLandmarks.length}点`;
-                rightHandGesture.textContent = `ジェスチャー: ${gesture}`;
-            } else {
-                rightHandInfo.textContent = '未検出';
-                rightHandGesture.textContent = 'ジェスチャー: なし';
+            const color = options.color || '#00FF00';
+            const lineWidth = options.lineWidth || 3;
+            
+            ctx.strokeStyle = color;
+            ctx.lineWidth = lineWidth;
+            
+            for (const [i, j] of connections) {
+                const start = landmarks[i];
+                const end = landmarks[j];
+                
+                if (!start || !end) continue;
+                
+                ctx.beginPath();
+                ctx.moveTo(start.x * ctx.canvas.width, start.y * ctx.canvas.height);
+                ctx.lineTo(end.x * ctx.canvas.width, end.y * ctx.canvas.height);
+                ctx.stroke();
             }
-            canvasCtx.restore();
         }
         
-        // MediaPipe Handsの初期化とカメラ設定
-        async function initializeMediaPipe() {
-            hands = new Hands({
-                locateFile: (file) => {
-                    return `https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4.1675469240/${file}`;
-                }
-            });
+        function drawLandmarks(ctx, landmarks, options) {
+            // MediaPipeのdrawLandmarks関数が利用可能ならそれを使う
+            if (window.drawLandmarks) {
+                window.drawLandmarks(ctx, landmarks, options);
+                return;
+            }
             
-            hands.setOptions({
-                maxNumHands: 2,
-                modelComplexity: 1,
-                minDetectionConfidence: 0.5,
-                minTrackingConfidence: 0.5,
-                selfieMode: true // ★重要: camera_utilsと組み合わせる場合、入力が反転されるのでtrue
-            });
+            const color = options.color || '#FF0000';
+            const radius = options.radius || 5;
             
-            hands.onResults(onResults);
+            ctx.fillStyle = color;
             
-            camera = new Camera(videoElement, {
-                onFrame: async () => {
-                    // isRunning フラグは camera.start() / camera.stop() で制御するので不要
-                    await hands.send({image: videoElement});
-                },
-                width: 640, // canvasの表示サイズに合わせて調整
-                height: 480
-            });
-
-            loadingDiv.style.display = 'none';
-            statusDiv.textContent = 'モデル準備完了！カメラを開始してください。';
-            startBtn.disabled = false; // 準備完了でボタン有効化
+            for (const landmark of landmarks) {
+                ctx.beginPath();
+                ctx.arc(
+                    landmark.x * ctx.canvas.width,
+                    landmark.y * ctx.canvas.height,
+                    radius,
+                    0,
+                    2 * Math.PI
+                );
+                ctx.fill();
+            }
         }
         
-        // ジェスチャーの検出（変更なし）
+        // ジェスチャーの検出
         function detectGesture(landmarks) {
+            // 指先のインデックス（親指, 人差し指, 中指, 薬指, 小指）
             const fingertips = [4, 8, 12, 16, 20];
+            // 指の第二関節のインデックス
             const secondJoints = [3, 7, 11, 15, 19];
             
+            // 指が伸びているかどうかをチェック
             let extendedFingers = 0;
-            for (let i = 1; i < fingertips.length; i++) {
+            for (let i = 1; i < fingertips.length; i++) { // 親指以外
                 const fingertip = landmarks[fingertips[i]];
-                const mcpJoint = landmarks[fingertips[i]-3]; // MCP関節 (例: 人差し指なら5)
-                if (fingertip.y < mcpJoint.y) { // Y座標は上が小さい
+                const secondJoint = landmarks[secondJoints[i]];
+                
+                // 指先が第二関節よりも上にあれば、指は伸びていると判断
+                if (fingertip.y < secondJoint.y) {
                     extendedFingers++;
                 }
             }
             
-            const thumbTip = landmarks[fingertips[0]]; // 4
-            const thumbMcp = landmarks[2]; // 2 (親指のMCP)
-            // 親指が開いているか (x座標で判定する単純な例)
-            // selfieMode: true のため、x座標の大小関係が通常と逆になることに注意
-            // 画面左がx大、右がx小
-            // 通常、親指が外側に開くと、親指の先端のxは人差し指の付け根のxより小さい(カメラ視点)
-            // selfieModeだとこれが逆になる。
-            // または、親指の先端が親指のMCP関節よりy座標が小さい（上に伸びている）
-            if (thumbTip.y < thumbMcp.y ) { // 縦方向の伸びで判定
-                 extendedFingers++;
+            // 親指のチェック
+            const thumb = landmarks[fingertips[0]];
+            const thumbJoint = landmarks[secondJoints[0]];
+            
+            // 親指が他の指から離れていれば伸びていると判断
+            if (Math.abs(thumb.x - thumbJoint.x) > 0.05) {
+                extendedFingers++;
             }
             
-            if (extendedFingers === 5) return '開いた手';
+            // ジェスチャーの判定
             if (extendedFingers === 0) return '握りこぶし';
-            if (extendedFingers === 2) {
-                // 人差し指と中指が伸びているか
-                const indexTipY = landmarks[8].y;
-                const indexMcpY = landmarks[5].y;
-                const middleTipY = landmarks[12].y;
-                const middleMcpY = landmarks[9].y;
-                if (indexTipY < indexMcpY && middleTipY < middleMcpY) return 'ピース';
-            }
-            if (extendedFingers === 1) {
-                const indexTipY = landmarks[8].y;
-                const indexMcpY = landmarks[5].y;
-                if (indexTipY < indexMcpY) return '指差し';
-            }
-            return `指 ${extendedFingers} 本`;
+            if (extendedFingers === 1) return '指差し';
+            if (extendedFingers === 2) return 'ピース';
+            if (extendedFingers === 3) return '3';
+            if (extendedFingers === 4) return '4';
+            if (extendedFingers === 5) return '開いた手';
+            
+            return '不明';
         }
         
-        // 検出を開始
+        // 結果の処理関数
+        function onResults(results) {
+            // キャンバスをクリア
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // キャンバスに入力映像を描画
+            ctx.save();
+            ctx.drawImage(results.image, 0, 0, canvas.width, canvas.height);
+            ctx.restore();
+            
+            // 検出された手を描画
+            if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+                // 左手と右手の情報をリセット
+                let leftHand = null;
+                let rightHand = null;
+                
+                // 各手について処理
+                for (let i = 0; i < results.multiHandLandmarks.length; i++) {
+                    const landmarks = results.multiHandLandmarks[i];
+                    const handedness = results.multiHandedness[i].label;
+                    
+                    // 手の種類に基づいて色を設定
+                    const color = handedness === 'Left' ? '#00FF00' : '#FF0000';
+                    
+                    // 手の接続を描画
+                    drawConnectors(ctx, landmarks, HAND_CONNECTIONS, {color: color, lineWidth: 3});
+                    
+                    // 手の特徴点を描画
+                    drawLandmarks(ctx, landmarks, {color: color, radius: 5});
+                    
+                    // 手の種類に基づいて情報を保存
+                    if (handedness === 'Left') {
+                        leftHand = landmarks;
+                    } else {
+                        rightHand = landmarks;
+                    }
+                }
+                
+                // 左手の情報を更新
+                if (leftHand) {
+                    const gesture = detectGesture(leftHand);
+                    leftHandInfo.textContent = `検出: ${leftHand.length}点`;
+                    leftHandGesture.textContent = `ジェスチャー: ${gesture}`;
+                } else {
+                    leftHandInfo.textContent = '未検出';
+                    leftHandGesture.textContent = 'ジェスチャー: なし';
+                }
+                
+                // 右手の情報を更新
+                if (rightHand) {
+                    const gesture = detectGesture(rightHand);
+                    rightHandInfo.textContent = `検出: ${rightHand.length}点`;
+                    rightHandGesture.textContent = `ジェスチャー: ${gesture}`;
+                } else {
+                    rightHandInfo.textContent = '未検出';
+                    rightHandGesture.textContent = 'ジェスチャー: なし';
+                }
+            } else {
+                // 手が検出されなかった場合
+                leftHandInfo.textContent = '未検出';
+                rightHandInfo.textContent = '未検出';
+                leftHandGesture.textContent = 'ジェスチャー: なし';
+                rightHandGesture.textContent = 'ジェスチャー: なし';
+            }
+        }
+        
+        // MediaPipe Handsの読み込み
+        async function loadModel() {
+            try {
+                handModel = new Hands({
+                    locateFile: (file) => {
+                        return `https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4.1675469240/${file}`;
+                    }
+                });
+                
+                // 手の検出設定
+                handModel.setOptions({
+                    maxNumHands: 2,        // 最大2つの手を検出
+                    modelComplexity: 1,    // モデルの複雑さ (0-1)
+                    minDetectionConfidence: 0.5,
+                    minTrackingConfidence: 0.5
+                });
+                
+                // 結果の処理関数を設定
+                handModel.onResults(onResults);
+                
+                // カメラのセットアップ
+                camera = new Camera(video, {
+                    onFrame: async () => {
+                        if (isRunning) {
+                            await handModel.send({image: video});
+                        }
+                    },
+                    width: 1280,
+                    height: 720
+                });
+                
+                isModelReady = true;
+                loadingDiv.style.display = 'none';
+                statusDiv.textContent = 'モデル準備完了！カメラを開始してください。';
+                startBtn.disabled = false;
+            } catch (error) {
+                console.error('モデルの読み込みに失敗しました:', error);
+                statusDiv.textContent = 'エラー: モデルの読み込みに失敗しました。';
+                loadingDiv.textContent = 'エラー: MediaPipeモデルを読み込めませんでした。';
+            }
+        }
+        
+        // カメラのセットアップ
+        async function setupCamera() {
+            if (!isModelReady) {
+                alert('モデルがまだ読み込まれていません。しばらくお待ちください。');
+                return;
+            }
+            
+            try {
+                // カメラへのアクセスを要求
+                stream = await navigator.mediaDevices.getUserMedia({
+                    video: { 
+                        width: { ideal: 1280 },
+                        height: { ideal: 720 }
+                    },
+                    audio: false
+                });
+                
+                // ビデオ要素にストリームを設定
+                video.srcObject = stream;
+                
+                // ビデオが読み込まれたら再生開始
+                return new Promise((resolve) => {
+                    video.onloadedmetadata = () => {
+                        // キャンバスサイズをビデオに合わせる
+                        canvas.width = video.videoWidth;
+                        canvas.height = video.videoHeight;
+                        resolve(video);
+                    };
+                });
+            } catch (error) {
+                console.error('カメラの設定に失敗しました:', error);
+                statusDiv.textContent = 'エラー: カメラへのアクセスが拒否されました。';
+                throw error;
+            }
+        }
+        
+        // 手の検出を開始
         async function startDetection() {
             if (isRunning) return;
             
             try {
-                await camera.start(); // camera_utils の start を呼ぶ
+                // カメラのセットアップ
+                await setupCamera();
+                
+                // カメラ開始
+                camera.start();
                 isRunning = true;
+                
+                // UIを更新
                 startBtn.disabled = true;
                 stopBtn.disabled = false;
                 statusDiv.textContent = '検出中...両手を画面に向けてください';
             } catch (error) {
                 console.error('検出の開始に失敗しました:', error);
-                isRunning = false;
                 statusDiv.textContent = 'エラー: 検出の開始に失敗しました。';
             }
         }
         
         // 検出を停止
         function stopDetection() {
-            if (!isRunning && !camera) return; // cameraが未初期化の場合もある
+            if (!isRunning) return;
+            isRunning = false;
             
-            if (camera) { // cameraが初期化されていればstopを試みる
-                // camera.stop(); // camera_utils には明示的な stop() がないことが多い
-                               // ストリームの停止で代用、または onFrame の処理を止める
-                // 代わりにビデオストリームを止める
-                const stream = videoElement.srcObject;
-                if (stream) {
-                    const tracks = stream.getTracks();
-                    tracks.forEach(track => track.stop());
-                    videoElement.srcObject = null;
-                }
+            // カメラ停止
+            camera.stop();
+            
+            // ビデオストリームを停止
+            if (stream) {
+                stream.getTracks().forEach(track => track.stop());
+                video.srcObject = null;
             }
             
-            isRunning = false;
-            canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+            // キャンバスをクリア
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // UIを更新
             startBtn.disabled = false;
             stopBtn.disabled = true;
             statusDiv.textContent = '停止しました';
@@ -341,9 +450,6 @@
             rightHandInfo.textContent = '未検出';
             leftHandGesture.textContent = 'ジェスチャー: なし';
             rightHandGesture.textContent = 'ジェスチャー: なし';
-
-            // 再度開始できるように、モデルを再初期化するか、カメラを再設定する必要がある場合がある
-            // ここでは単純にUIをリセットするのみ
         }
         
         // イベントリスナーを設定
@@ -351,14 +457,7 @@
         stopBtn.addEventListener('click', stopDetection);
         
         // ページ読み込み時にモデルを読み込む
-        window.addEventListener('load', async () => {
-            try {
-                await initializeMediaPipe();
-            } catch (error) {
-                console.error("初期化エラー:", error);
-                loadingDiv.textContent = '初期化エラーが発生しました。コンソールを確認してください。';
-            }
-        });
+        window.addEventListener('load', loadModel);
     </script>
 </body>
 </html>
