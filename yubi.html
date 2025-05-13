@@ -33,9 +33,9 @@
             margin: 0 auto;
             overflow: hidden;
             border-radius: 8px;
-            border: 1px solid #ccc; /* 確認用ボーダー */
+            border: 1px solid #ccc;
         }
-        #video { /* video要素は非表示なので、スタイルはほぼ影響なし */
+        #video {
             display: none; 
         }
         #canvas {
@@ -44,7 +44,8 @@
             top: 0;
             width: 100%;
             height: 100%;
-            /* transform: scaleX(-1); */ /* selfieMode:true を使うのでCSSでの反転は不要 */
+            /* CSSでの反転はselfieMode:trueと併用すると混乱するため基本的には行わない */
+            /* transform: scaleX(-1); */ 
         }
         .controls {
             display: flex;
@@ -86,7 +87,10 @@
             padding: 15px;
             background-color: #f8f9fa;
             border-radius: 4px;
-            border-left: 5px solid #27ae60;
+            border-left: 5px solid #27ae60; /* 左手情報(緑) */
+        }
+        .hand-info:last-child { /* 右手情報(赤っぽくするなら) */
+            /* border-left: 5px solid #c0392b; */
         }
         .loading {
             text-align: center;
@@ -106,22 +110,24 @@
         </div>
         
         <div class="video-container">
-            <video id="video" playsinline></video> <!-- style="display: none;" はJS側で制御するなら不要かも -->
+            <video id="video" playsinline></video>
             <canvas id="canvas"></canvas>
         </div>
         
         <div id="loading" class="loading">MediaPipeモデルを読み込み中...</div>
         
         <div class="gesture-info">
-            <div class="hand-info">
+            <div class="hand-info" id="leftHandDisplay">
                 <h3>左手情報</h3>
                 <div id="leftHandInfo">未検出</div>
                 <div id="leftHandGesture">ジェスチャー: なし</div>
+                <!-- <div id="leftHandSign">手話: -</div> -->
             </div>
-            <div class="hand-info">
+            <div class="hand-info" id="rightHandDisplay">
                 <h3>右手情報</h3>
                 <div id="rightHandInfo">未検出</div>
                 <div id="rightHandGesture">ジェスチャー: なし</div>
+                <!-- <div id="rightHandSign">手話: -</div> -->
             </div>
         </div>
         
@@ -134,6 +140,9 @@
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4.1675469240/hands.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils@0.3/camera_utils.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils@0.3/drawing_utils.js" crossorigin="anonymous"></script>
+    <!-- Fingerpose (手話認識に使用する場合) -->
+    <!-- <script src="https://cdn.jsdelivr.net/npm/fingerpose@0.1.0/dist/fingerpose.min.js"></script> -->
+
 
     <script>
         const videoElement = document.getElementById('video');
@@ -143,17 +152,25 @@
         const stopBtn = document.getElementById('stopBtn');
         const statusDiv = document.getElementById('status');
         const loadingDiv = document.getElementById('loading');
-        const leftHandInfo = document.getElementById('leftHandInfo');
-        const rightHandInfo = document.getElementById('rightHandInfo');
-        const leftHandGesture = document.getElementById('leftHandGesture');
-        const rightHandGesture = document.getElementById('rightHandGesture');
+        
+        // 左手・右手UI要素
+        const leftHandInfoEl = document.getElementById('leftHandInfo');
+        const rightHandInfoEl = document.getElementById('rightHandInfo');
+        const leftHandGestureEl = document.getElementById('leftHandGesture');
+        const rightHandGestureEl = document.getElementById('rightHandGesture');
+        // const leftHandSignEl = document.getElementById('leftHandSign');
+        // const rightHandSignEl = document.getElementById('rightHandSign');
         
         let hands;
         let camera;
         let isRunning = false;
 
+        // Fingerpose ジェスチャーエスティメーター (手話認識に使用する場合)
+        // let gestureEstimator = null;
+        // const knownGestures = []; // 事前に定義したジェスチャーの配列
+
         function onResults(results) {
-            if (!isRunning) return; // 停止後に結果が届く場合があるため
+            if (!isRunning) return; 
 
             if (canvasElement.width !== results.image.width) {
                 canvasElement.width = results.image.width;
@@ -164,50 +181,56 @@
 
             canvasCtx.save();
             canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
-            
-            // カメラ映像を描画 (results.imageはselfieMode:trueにより既に反転済み)
             canvasCtx.drawImage(results.image, 0, 0, canvasElement.width, canvasElement.height);
 
-            let userLeftHandLandmarks = null;
-            let userRightHandLandmarks = null;
+            // 検出結果を一旦クリア
+            leftHandInfoEl.textContent = '未検出';
+            leftHandGestureEl.textContent = 'ジェスチャー: なし';
+            // leftHandSignEl.textContent = '手話: -';
+            rightHandInfoEl.textContent = '未検出';
+            rightHandGestureEl.textContent = 'ジェスチャー: なし';
+            // rightHandSignEl.textContent = '手話: -';
 
             if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
                 for (let i = 0; i < results.multiHandLandmarks.length; i++) {
                     const landmarks = results.multiHandLandmarks[i];
                     const cameraHandedness = results.multiHandedness[i].label; 
-                    // selfieMode:true のため、カメラの'Left'がユーザーの右手、'Right'がユーザーの左手
+                    
+                    // selfieMode:true の場合、カメラの'Left'がユーザーの右手、'Right'がユーザーの左手
                     const userHandedness = cameraHandedness === 'Left' ? 'Right' : 'Left';
+                    // *** もし上記で左右が逆になる場合は、以下を試してください ***
+                    // const userHandedness = cameraHandedness === 'Left' ? 'Left' : 'Right';
 
-                    // ユーザーの左手(UI上)を緑、右手(UI上)を赤で描画
-                    const drawColor = userHandedness === 'Left' ? '#00FF00' : '#FF0000'; 
+
+                    const drawColor = userHandedness === 'Left' ? '#00FF00' : '#FF0000'; // UI上の左手:緑, UI上の右手:赤
                     
                     drawConnectors(canvasCtx, landmarks, HAND_CONNECTIONS, {color: drawColor, lineWidth: 3});
                     drawLandmarks(canvasCtx, landmarks, {color: drawColor, lineWidth: 1, radius: 5});
 
+                    const gesture = detectGesture(landmarks, userHandedness); // userHandednessを渡す (親指判定で使う場合)
+
                     if (userHandedness === 'Left') {
-                        userLeftHandLandmarks = landmarks;
-                    } else { 
-                        userRightHandLandmarks = landmarks;
+                        leftHandInfoEl.textContent = `検出: ${landmarks.length}点`;
+                        leftHandGestureEl.textContent = `ジェスチャー: ${gesture}`;
+                        // if (gestureEstimator) {
+                        //     const estimation = gestureEstimator.estimate(landmarks, 7.5); // 信頼度75%以上
+                        //     if (estimation.gestures.length > 0) {
+                        //         const sign = estimation.gestures[0].name;
+                        //         leftHandSignEl.textContent = `手話: ${sign}`;
+                        //     }
+                        // }
+                    } else { // userHandedness === 'Right'
+                        rightHandInfoEl.textContent = `検出: ${landmarks.length}点`;
+                        rightHandGestureEl.textContent = `ジェスチャー: ${gesture}`;
+                        // if (gestureEstimator) {
+                        //    const estimation = gestureEstimator.estimate(landmarks, 7.5);
+                        //     if (estimation.gestures.length > 0) {
+                        //         const sign = estimation.gestures[0].name;
+                        //         rightHandSignEl.textContent = `手話: ${sign}`;
+                        //     }
+                        // }
                     }
                 }
-            }
-
-            if (userLeftHandLandmarks) {
-                const gesture = detectGesture(userLeftHandLandmarks);
-                leftHandInfo.textContent = `検出: ${userLeftHandLandmarks.length}点`;
-                leftHandGesture.textContent = `ジェスチャー: ${gesture}`;
-            } else {
-                leftHandInfo.textContent = '未検出';
-                leftHandGesture.textContent = 'ジェスチャー: なし';
-            }
-            
-            if (userRightHandLandmarks) {
-                const gesture = detectGesture(userRightHandLandmarks);
-                rightHandInfo.textContent = `検出: ${userRightHandLandmarks.length}点`;
-                rightHandGesture.textContent = `ジェスチャー: ${gesture}`;
-            } else {
-                rightHandInfo.textContent = '未検出';
-                rightHandGesture.textContent = 'ジェスチャー: なし';
             }
             canvasCtx.restore();
         }
@@ -224,87 +247,124 @@
                 modelComplexity: 1,
                 minDetectionConfidence: 0.5,
                 minTrackingConfidence: 0.5,
-                selfieMode: true // trueに設定
+                selfieMode: true
             });
             
             hands.onResults(onResults);
             
             camera = new Camera(videoElement, {
                 onFrame: async () => {
-                    if (!hands) return; // handsが初期化されるまで待つ
+                    if (!hands) return;
                     await hands.send({image: videoElement});
                 },
                 width: 640, 
                 height: 480 
             });
 
-            videoElement.style.display = 'none'; // camera_utilsが制御するのでvideo要素は非表示
+            videoElement.style.display = 'none';
+
+            // Fingerposeの初期化 (手話認識に使用する場合)
+            // if (typeof fp !== 'undefined') {
+            //     // ジェスチャー定義の例 (実際にはもっと多くの手話ポーズを定義)
+            //     const ThumbUpGesture = new fp.GestureDescription('thumb_up');
+            //     ThumbUpGesture.addCurl(fp.Finger.Thumb, fp.FingerCurl.NoCurl, 1.0);
+            //     ThumbUpGesture.addDirection(fp.Finger.Thumb, fp.FingerDirection.VerticalUp, 1.0);
+            //     for(let finger of [fp.Finger.Index, fp.Finger.Middle, fp.Finger.Ring, fp.Finger.Pinky]) {
+            //         ThumbUpGesture.addCurl(finger, fp.FingerCurl.FullCurl, 1.0);
+            //         ThumbUpGesture.addDirection(finger, fp.FingerDirection.HorizontalLeft, 0.5); // 方向は左右どちらでも
+            //         ThumbUpGesture.addDirection(finger, fp.FingerDirection.HorizontalRight, 0.5);
+            //     }
+            //     knownGestures.push(ThumbUpGesture);
+            //     // 他のジェスチャーも追加...
+            //     gestureEstimator = new fp.GestureEstimator(knownGestures);
+            //     console.log('Fingerpose estimator initialized.');
+            // }
+
 
             loadingDiv.style.display = 'none';
             statusDiv.textContent = 'モデル準備完了！カメラを開始してください。';
             startBtn.disabled = false;
         }
         
-        function detectGesture(landmarks) {
+        function detectGesture(landmarks, handedness) { // handedness を引数に追加 (親指のX座標判定で使う場合)
             const fingertips = [4, 8, 12, 16, 20];
-            // const secondJoints = [3, 7, 11, 15, 19]; // Y座標比較ならMCPの方が安定するかも
-            const mcpJoints = [2, 5, 9, 13, 17]; // 親指(2), 人差し指(5), 中指(9), 薬指(13), 小指(17)
-            
+            const mcpJoints = [2, 5, 9, 13, 17];
+            const pipJoints = [3, 6, 10, 14, 18];
+
             let extendedFingers = 0;
 
             // 人差し指から小指 (i=1 to 4)
-            for (let i = 1; i < fingertips.length; i++) { 
+            for (let i = 1; i < fingertips.length; i++) {
                 const fingertip = landmarks[fingertips[i]];
                 const mcpJoint = landmarks[mcpJoints[i]];
-                if (fingertip.y < mcpJoint.y) { // Y座標は画面上が小さい
+                const pipJoint = landmarks[pipJoints[i]];
+                if (fingertip.y < pipJoint.y && pipJoint.y < mcpJoint.y) {
                     extendedFingers++;
                 }
             }
-            
-            // 親指
-            const thumbTip = landmarks[fingertips[0]]; // 4
-            const thumbMcp = landmarks[mcpJoints[0]]; // 2
-            // 親指がMCP関節より「上」にあるか、または手首(0)に対して開いているかで判断
-            // ここでは単純にY座標で比較
-            if (thumbTip.y < thumbMcp.y) {
-                 extendedFingers++;
+
+            // 親指の判定
+            const thumbTip = landmarks[fingertips[0]];
+            const thumbIp = landmarks[pipJoints[0]];
+            const thumbMcp = landmarks[mcpJoints[0]];
+            const thumbIsStraightUp = thumbTip.y < thumbIp.y && thumbIp.y < thumbMcp.y;
+
+            if (thumbIsStraightUp) {
+                 // 親指が立っていると判定。より厳密にするならX方向の開きも考慮。
+                 // 例: X方向の開き (handednessに依存)
+                 // const wrist = landmarks[0];
+                 // const indexMcp = landmarks[mcpJoints[1]];
+                 // if (handedness === 'Right') { // ユーザーの右手の場合 (カメラから見て左手)
+                 //    if (thumbTip.x > wrist.x && thumbTip.x > indexMcp.x + 0.03 ) extendedFingers++; // 画面右に開いている
+                 // } else { // ユーザーの左手の場合 (カメラから見て右手)
+                 //    if (thumbTip.x < wrist.x && thumbTip.x < indexMcp.x - 0.03 ) extendedFingers++; // 画面左に開いている
+                 // }
+                 // 今回はY軸の伸びだけでカウント
+                extendedFingers++;
             }
             
-            if (extendedFingers === 5) return '開いた手';
-            if (extendedFingers === 0) return '握りこぶし';
-            
-            // ピースサインの判定 (人差し指と中指が伸びていて、他が曲がっている)
+            // 特別なジェスチャーの判定を先に行う
+            // ピースサイン
             const indexTip = landmarks[fingertips[1]];
+            const indexPip = landmarks[pipJoints[1]];
             const indexMcp = landmarks[mcpJoints[1]];
             const middleTip = landmarks[fingertips[2]];
+            const middlePip = landmarks[pipJoints[2]];
             const middleMcp = landmarks[mcpJoints[2]];
-            const ringTip = landmarks[fingertips[3]];
-            const ringMcp = landmarks[mcpJoints[3]];
-            const pinkyTip = landmarks[fingertips[4]];
-            const pinkyMcp = landmarks[mcpJoints[4]];
 
-            if (extendedFingers === 2 && 
-                indexTip.y < indexMcp.y && 
-                middleTip.y < middleMcp.y &&
-                !(thumbTip.y < thumbMcp.y) && // 親指は曲がっている
-                !(ringTip.y < ringMcp.y) &&   // 薬指は曲がっている
-                !(pinkyTip.y < pinkyMcp.y)    // 小指は曲がっている
-            ) return 'ピース';
-
-            // 指差しの判定 (人差し指のみ伸びている)
-             if (extendedFingers === 1 && 
-                indexTip.y < indexMcp.y &&
-                !(thumbTip.y < thumbMcp.y) &&   // 親指は曲がっている
-                !(middleTip.y < middleMcp.y) && // 中指は曲がっている
-                !(ringTip.y < ringMcp.y) &&     // 薬指は曲がっている
-                !(pinkyTip.y < pinkyMcp.y)      // 小指は曲がっている
-            ) return '指差し';
+            const indexIsStraight = indexTip.y < indexPip.y && indexPip.y < indexMcp.y;
+            const middleIsStraight = middleTip.y < middlePip.y && middlePip.y < middleMcp.y;
             
-            return `指 ${extendedFingers} 本`;
+            let thumbBent = !thumbIsStraightUp;
+            let ringBent = !(landmarks[fingertips[3]].y < landmarks[pipJoints[3]].y && landmarks[pipJoints[3]].y < landmarks[mcpJoints[3]].y);
+            let pinkyBent = !(landmarks[fingertips[4]].y < landmarks[pipJoints[4]].y && landmarks[pipJoints[4]].y < landmarks[mcpJoints[4]].y);
+
+            if (indexIsStraight && middleIsStraight && thumbBent && ringBent && pinkyBent) {
+                return 'ピース';
+            }
+
+            // 指差し
+            if (indexIsStraight && thumbBent && !middleIsStraight && ringBent && pinkyBent) {
+                 // middleIsStraight が false (曲がっている) であることを確認
+                const middleIsBent = !(middleTip.y < middlePip.y && middlePip.y < middleMcp.y);
+                if(middleIsBent){
+                    return '指差し';
+                }
+            }
+
+            // 指の本数に基づく汎用的なジェスチャー
+            if (extendedFingers === 5) return '開いた手';
+            if (extendedFingers === 0) return '握りこぶし';
+            if (extendedFingers === 1) return '1';
+            if (extendedFingers === 2) return '2'; // ピースと被らないように注意
+            if (extendedFingers === 3) return '3';
+            if (extendedFingers === 4) return '4';
+            
+            return '不明';
         }
         
         async function startDetection() {
-            if (isRunning || !camera) return; // cameraが未初期化なら何もしない
+            if (isRunning || !camera) return;
             
             try {
                 await camera.start();
@@ -322,9 +382,7 @@
         function stopDetection() {
             if (!isRunning && !camera) return;
             
-            // camera.stop() が camera_utils にあればそれを使うのが理想
-            // ない場合は、フレーム処理を止めるか、ストリームを止める
-            isRunning = false; // これで onResults 内の処理がスキップされる
+            isRunning = false; 
             
             const stream = videoElement.srcObject;
             if (stream) {
@@ -337,10 +395,10 @@
             startBtn.disabled = false;
             stopBtn.disabled = true;
             statusDiv.textContent = '停止しました';
-            leftHandInfo.textContent = '未検出';
-            rightHandInfo.textContent = '未検出';
-            leftHandGesture.textContent = 'ジェスチャー: なし';
-            rightHandGesture.textContent = 'ジェスチャー: なし';
+            leftHandInfoEl.textContent = '未検出';
+            leftHandGestureEl.textContent = 'ジェスチャー: なし';
+            rightHandInfoEl.textContent = '未検出';
+            rightHandGestureEl.textContent = 'ジェスチャー: なし';
         }
         
         startBtn.addEventListener('click', startDetection);
