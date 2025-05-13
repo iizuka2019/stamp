@@ -197,9 +197,9 @@
                     const cameraHandedness = results.multiHandedness[i].label; 
                     
                     // selfieMode:true の場合、カメラの'Left'がユーザーの右手、'Right'がユーザーの左手
-                    const userHandedness = cameraHandedness === 'Left' ? 'Right' : 'Left';
+                    // const userHandedness = cameraHandedness === 'Left' ? 'Right' : 'Left';
                     // *** もし上記で左右が逆になる場合は、以下を試してください ***
-                    // const userHandedness = cameraHandedness === 'Left' ? 'Left' : 'Right';
+                    const userHandedness = cameraHandedness === 'Left' ? 'Left' : 'Right';
 
 
                     const drawColor = userHandedness === 'Left' ? '#00FF00' : '#FF0000'; // UI上の左手:緑, UI上の右手:赤
